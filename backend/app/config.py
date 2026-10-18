@@ -16,8 +16,6 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite:///data/news.db"
 
-    daily_cap_per_topic: int = Field(default=5, ge=0)
-
     feed_size: int = Field(default=70, gt=0)
     rank_candidates: int = Field(default=500, gt=0)
     rank_gravity: float = Field(default=1.0, gt=0)

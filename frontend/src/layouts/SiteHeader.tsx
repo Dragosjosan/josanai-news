@@ -1,7 +1,6 @@
 import { Link, useSearchParams } from 'react-router'
 import { useTopics } from '../app/topicsContext.ts'
 import { feedUrl, paths } from '../routes/paths.ts'
-import PostQuota from './PostQuota.tsx'
 import './SiteHeader.css'
 
 function SiteHeader() {
@@ -28,8 +27,6 @@ function SiteHeader() {
           </Link>
         ))}
       </nav>
-
-      <PostQuota topics={topics} />
     </header>
   )
 }

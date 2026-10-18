@@ -28,8 +28,8 @@ def get_feed_service(session: DatabaseSession, settings: AppSettings) -> FeedSer
     return FeedService(session, settings)
 
 
-def get_topic_service(session: DatabaseSession, settings: AppSettings) -> TopicService:
-    return TopicService(session, settings)
+def get_topic_service(session: DatabaseSession) -> TopicService:
+    return TopicService(session)
 
 
 FeedServiceDep = Annotated[FeedService, Depends(get_feed_service)]

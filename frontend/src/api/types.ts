@@ -2,7 +2,6 @@ export type Topic = {
   slug: string
   name: string
   tags: string[]
-  remaining_today: number
 }
 
 export type FeedItem = {
