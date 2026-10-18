@@ -224,7 +224,7 @@ server is exposed.
 ### Services
 
 **frontend**: Vite + React, built to static assets and served by its own nginx
-container. The screens (feed, item + comments, login, signup, admin actions) come
+container. The screens (feed, item + comments, submit, login, signup, admin actions) come
 from the **Claude Design export**. `josanai-design` is a submodule at
 `frontend/src/design` and provides the tokens and elements the export builds on.
 API types are generated from the FastAPI code.
@@ -331,45 +331,328 @@ Talks to news-api only through a small typed client for the contract below.
   the LLM providers, Exa, TypeSafe and X, plus the bot API key and the session
   secret). Never committed; see "Open source".
 
-## The Contract
+## API
 
-The single point of coupling. Versioned; `news-api` rejects unknown versions. It
-is the same endpoint every publisher uses: our agent with its API key, anyone
-else anonymously. The provenance fields are optional, and our agent always sends
-them. news-api canonicalizes `url` itself when `canonical_url` is missing.
+Status: PINNED on 2026-10-18.
+
+Every endpoint news-api exposes. The frontend, our agent and external
+publishers all use this one API; nothing is private to the frontend.
+
+### Conventions
+
+- Base path `/api/v1`, except `GET /health`. JSON in and out, UTF-8.
+- Request bodies reject unknown fields (422), so a typo in a field name fails
+  loudly instead of being dropped.
+- Strings are trimmed. Control characters are rejected, except newlines in
+  comment text. Titles also have inner whitespace collapsed to single spaces.
+- Datetimes are ISO 8601 in UTC on the way out. On the way in they must carry a
+  timezone offset; naive values are rejected.
+- URLs, wherever they are accepted: absolute `http` or `https`, a host, no
+  `user:password@`, at most 2048 characters. news-api never fetches them.
+- Ids are integers. A missing or soft-deleted item or comment is a 404 for
+  everyone; deleted rows are only visible through the admin endpoints.
+- No CORS. The frontend is served from the same origin, and external publishers
+  call the API server to server. Write endpoints only accept
+  `Content-Type: application/json`, so a cross-site form cannot post to them.
+
+### Errors
+
+Every error, including FastAPI's own validation errors, 404s on unknown routes
+and 500s, uses one body:
+
+```
+{
+  "error": {
+    "code":    str,          # stable, machine-readable
+    "message": str,          # human-readable, may change
+    "details": object | null
+  }
+}
+```
+
+| Status | `code`                                   | When                                              |
+|--------|------------------------------------------|---------------------------------------------------|
+| 401    | `not_authenticated`                      | The endpoint needs a session and there is none    |
+| 401    | `invalid_api_key`                        | An `X-API-Key` was sent and does not match        |
+| 401    | `invalid_credentials`                    | Login with a wrong username or password           |
+| 403    | `forbidden`                              | Signed in, but not allowed                        |
+| 404    | `not_found`                              | Unknown route, item, comment or account           |
+| 405    | `method_not_allowed`                     |                                                   |
+| 409    | `duplicate`                              | Submission of a story already on the site         |
+| 409    | `username_taken`                         | Signup                                            |
+| 415    | `unsupported_media_type`                 | A write without `application/json`                |
+| 422    | `validation_error`                       | Body or query fails validation; `details.fields`  |
+| 422    | `unsupported_contract_version`           | `contract_version` is not `"1"`                   |
+| 422    | `unknown_topic`, `unknown_tag`           | Not in `GET /topics`                              |
+| 422    | `off_topic`                              | Jev: not about the declared topic                 |
+| 422    | `reserved_publisher`, `publisher_mismatch` | See "Publisher label"                           |
+| 422    | `parent_not_found`                       | Reply to a comment that is missing, deleted, or on another item |
+| 429    | `rate_limited`                           | `Retry-After` header set, also `details.retry_after` |
+| 500    | `internal_error`                         | Logged with a request id, returned in `details`   |
+| 503    | `jev_unavailable`                        | `Retry-After` header set                          |
+
+`validation_error` details: `{ "fields": [{ "loc": [str | int], "message": str }] }`.
+
+### Identity
+
+Three ways a request is identified. They never mix: an endpoint states which one
+it reads.
+
+- **Session cookie** (`session`): humans and the admin. HttpOnly, `Secure` in
+  production, `SameSite=Lax`, `Path=/`, 30 days. The token is random, stored
+  hashed in `sessions`, and removed on logout.
+- **API key** (`X-API-Key`): keyed publishers (`kind=agent`). Only read by
+  `POST /items`. A key that does not match is a 401, never a fallback to
+  anonymous.
+- **Voter cookie** (`voter`): a signed random id, set on the first vote or
+  click, one year. The voter is this id plus the salted IP hash
+  (`IP_HASH_SALT`); the raw IP is never stored.
+
+"Account" below means a valid session; "admin" means a session whose account has
+`kind=admin`.
+
+### Rate limits
+
+Per IP hash, over a rolling hour, returning 429 `rate_limited`. nginx
+`limit_req` on `/api` sits in front of all of them.
+
+| Setting             | Default | Counts                                               |
+|---------------------|---------|------------------------------------------------------|
+| `SUBMIT_PER_HOUR`   | 10      | Anonymous `POST /items`, every attempt. Keyed publishers are not limited here |
+| `VOTE_PER_HOUR`     | 120     | `PUT /items/{id}/vote`                               |
+| `CLICK_PER_HOUR`    | 600     | `POST /items/{id}/click`                             |
+| `COMMENT_PER_HOUR`  | 30      | `POST /items/{id}/comments`, per account             |
+| `FLAG_PER_HOUR`     | 20      | `PUT /items/{id}/flag`, per account                  |
+| `SIGNUP_PER_HOUR`   | 5       | `POST /auth/signup`                                  |
+| `LOGIN_PER_HOUR`    | 20      | `POST /auth/login`, failed attempts only             |
+
+### Shapes
+
+```
+ItemSummary                            feed, search, admin flag list
+  id               int
+  title            str
+  url              str
+  domain           str                 from url, without "www."
+  topic            str                 topic slug
+  tags             [str]
+  score            int                 up − down
+  comment_count    int                 visible comments
+  publisher        str | null          by-line label; null shows no by-line
+  created_at       datetime            when it was posted on the site
+  viewer_vote      "up" | "down" | null
+
+ItemDetail = ItemSummary +
+  source_name      str | null
+  published_at     datetime | null     the source's own date
+  summary          str | null
+  primary_ref      str | null
+  corroborating    [Link]
+  earlier          [ItemRef]           stories this item updates (Connections)
+  later            [ItemRef]           stories that update this item
+  viewer_flagged   bool                false without a session
+
+Link     { url: str, domain: str }
+ItemRef  { id: int, title: str, domain: str, created_at: datetime }
+
+Comment
+  id               int
+  parent_id        int | null
+  author           str | null          null when deleted
+  text             str | null          null when deleted; the UI shows "[deleted]"
+  created_at       datetime
+  deleted          bool
+  can_delete       bool                viewer is the author or the admin
+
+Account
+  id               int
+  username         str
+  kind             "human" | "agent" | "admin"
+  created_at       datetime
+
+Topic    { slug: str, name: str, description: str, tags: [str] }
+```
+
+`canonical_url`, `provenance_score`, the submitter's IP hash and the owning
+account are stored but never returned.
+
+`earlier` and `later` are resolved when the item is read, not when it is
+posted: a `related_urls` entry links up as soon as an item with that canonical
+URL exists, and a Jev `update` match is stored as an edge directly. Deleted items
+drop out of both lists.
+
+### Endpoints
+
+| Method | Path                               | Who              | Purpose                        |
+|--------|------------------------------------|------------------|--------------------------------|
+| GET    | `/health`                          | public           | Liveness, `{ "status": "ok" }` |
+| GET    | `/topics`                          | public           | Topics and their tags          |
+| GET    | `/items`                           | public           | Front page                     |
+| POST   | `/items`                           | public, or key   | Submit (the contract)          |
+| GET    | `/items/{id}`                      | public           | Item page                      |
+| DELETE | `/items/{id}`                      | admin            | Soft delete                    |
+| PUT    | `/items/{id}/vote`                 | public           | Vote, flip or retract          |
+| POST   | `/items/{id}/click`                | public           | Record an outbound click       |
+| PUT    | `/items/{id}/flag`                 | account          | Flag                           |
+| DELETE | `/items/{id}/flag`                 | account          | Remove your flag               |
+| GET    | `/items/{id}/comments`             | public           | Thread                         |
+| POST   | `/items/{id}/comments`             | account          | Comment or reply               |
+| DELETE | `/comments/{id}`                   | author or admin  | Soft delete                    |
+| GET    | `/search`                          | public           | History                        |
+| GET    | `/publishers`                      | public           | Leaderboard                    |
+| POST   | `/auth/signup`                     | public           | Create a human account         |
+| POST   | `/auth/login`                      | public           | Start a session                |
+| POST   | `/auth/logout`                     | public           | End the session                |
+| GET    | `/auth/me`                         | public           | Current account or null        |
+| GET    | `/admin/flags`                     | admin            | Review list                    |
+| POST   | `/admin/flags/{item_id}/resolve`   | admin            | Dismiss or delete              |
+| POST   | `/admin/items/bulk-delete`         | admin            | Delete by submitter            |
+| DELETE | `/admin/accounts/{username}`       | admin            | Anonymize an account           |
+
+Without a valid session, the session-only endpoints return 401 `not_authenticated`,
+and the admin endpoints return 403 `forbidden` to non-admins.
+
+### The Contract: `POST /items`
+
+The single point of coupling with the agents. It is the same endpoint every
+publisher uses: our agent with its API key, anyone else anonymously, including
+the frontend's submit page. Only the API key is read; a session cookie is
+ignored.
 
 ```
 POST /api/v1/items      X-API-Key: <account key>   (optional; omit to post anonymously)
 
 {
-  "contract_version": "1",
-  "title":            str,
-  "url":              str,
-  "topic":            "hemophilia" | "ai",
-  "tags":             [str],
-  "publisher":        str | null,   # optional by-line label, 1-40 chars
+  "contract_version":   "1",
+  "title":              str,            1–300
+  "url":                str,
+  "topic":              str,            a slug from GET /topics
+  "tags":               [str],          0–5, each in the topic's list, duplicates dropped
+  "publisher":          str | null,     1–40, see "Publisher label"
   # optional, always sent by our agent:
-  "canonical_url":    str | null,
-  "source_name":      str | null,
-  "published_at":     datetime | null,
-  "summary":          str | null,   # asserts nothing the source does not
-  "primary_ref":      str | null,   # NCT id, DOI, FDA/EMA docket, arXiv id
-  "corroborating_urls": [str],
-  "related_urls":     [str],        # connections to earlier coverage
-  "provenance_score": float | null  # internal: ranking input, never displayed
+  "canonical_url":      str | null,     honoured only with an API key
+  "source_name":        str | null,     1–200
+  "published_at":       datetime | null, at most 24 h in the future
+  "summary":            str | null,     1–2000, asserts nothing the source does not
+  "primary_ref":        str | null,     1–200: NCT id, DOI, FDA/EMA docket, arXiv id
+  "corroborating_urls": [str],          0–10
+  "related_urls":       [str],          0–10, connections to earlier coverage
+  "provenance_score":   float | null    0–1, stored, never displayed or ranked on
 }
-
-201 created
-409 duplicate: same canonical_url, or Jev judged it the same story
-    (body carries the existing item id)
-422 unknown tag/topic · off_topic (Jev) · reserved_publisher
-429 per-IP rate limit
-503 Jev unavailable (Retry-After set)
 ```
 
+**Canonical URL.** news-api always computes a canonical form of `url`
+syntactically, with the same rules as the agents' layer 1 minus redirect
+resolution, since news-api never fetches. A keyed publisher may send its own
+`canonical_url` (our agent resolves redirects first) and news-api uses it as
+given. An anonymous `canonical_url` is ignored, so nobody can dodge the duplicate
+check with a made-up one. `related_urls` are canonicalized the same way.
+
+**Order of checks.** The first failure wins.
+
+1. Body shape and limits → 422 `validation_error`, `unsupported_contract_version`.
+2. `X-API-Key`, when sent → 401 `invalid_api_key`.
+3. Anonymous rate limit → 429.
+4. Topic and tags → 422 `unknown_topic`, `unknown_tag`.
+5. Publisher label → 422 `reserved_publisher`, `publisher_mismatch`.
+6. Exact canonical URL → 409 `duplicate`, without calling Jev.
+7. Jev → 503 `jev_unavailable`, 422 `off_topic`, 409 `duplicate`.
+8. Insert, with the Jev decision in `submission_checks`.
+
+**Responses.**
+
 ```
-GET /api/v1/topics      → [{ "slug", "name", "tags": [..] }]
+201  ItemDetail, with Location: /api/v1/items/{id}
+409  duplicate     details: { "item_id": int | null, "reason": "same_url" | "same_story" }
+                   item_id is null when the match was deleted: a deleted item
+                   keeps its URL, and that URL cannot be posted again.
+422  see the order of checks
+429  rate_limited
+503  jev_unavailable
 ```
+
+A Jev `update` is a 201: the matched story appears in the new item's `earlier`.
+
+### Reading
+
+- `GET /topics` → `[Topic]`, in display order.
+- `GET /items?topic=&tag=` → `{ "items": [ItemSummary] }`, the front page as in
+  "One page of 70". An unknown `topic` or `tag` is a 422; `tag` without `topic`
+  matches that tag name in any topic.
+- `GET /items/{id}` → `ItemDetail`.
+- `GET /search?q=&topic=&tag=&from=&to=&sort=&page=` →
+  `{ "items": [ItemSummary], "page": int, "has_more": bool }`.
+  `q` is 0–200 characters; without it, results are by date only. `from` and
+  `to` are UTC dates, inclusive. `sort` is `relevance` (default with `q`) or
+  `date`. `page` starts at 1. 70 per page.
+- `GET /publishers?period=week|all&topic=` →
+  `[{ "publisher": str, "items": int, "net_votes": int }]`, top 100 by net
+  votes. `period` defaults to `week`.
+
+### Votes and clicks
+
+- `PUT /items/{id}/vote` with `{ "direction": "up" | "down" | "none" }` →
+  200 `{ "score": int, "viewer_vote": "up" | "down" | null }`. Idempotent:
+  sending the current direction again changes nothing; `none` retracts. Each
+  change is appended to `vote_events`.
+- `POST /items/{id}/click`, no body → 204. Sent with `navigator.sendBeacon`, so
+  it is exempt from the JSON-only rule. Every click is logged; `unique_clicks`
+  counts one per voter.
+
+Both set the voter cookie when it is missing.
+
+### Comments
+
+- `GET /items/{id}/comments` → `{ "comments": [Comment] }`, flat and oldest
+  first; the frontend builds the tree from `parent_id`. Deleted comments stay in
+  the list so threads keep their shape.
+- `POST /items/{id}/comments` (account) with
+  `{ "text": str, "parent_id": int | null }` → 201 `Comment`. `text` is
+  1–5000 characters.
+- `DELETE /comments/{id}` (author or admin) → 204. Deleting an already deleted
+  comment is a 204 too.
+
+There is no editing and no comment voting.
+
+### Accounts
+
+- `POST /auth/signup` with `{ "username": str, "password": str, "website": str }`
+  → 201 `Account`, and the session cookie is set. `username` is 3–32 of
+  `[A-Za-z0-9_-]`, unique ignoring case, and may not be `anonymous` or a
+  reserved publisher name. `password` is 8–128 characters. `website` is the
+  honeypot: it must be empty, and a filled one gets the same 422 as any invalid
+  body.
+- `POST /auth/login` with `{ "username": str, "password": str }` → 200
+  `Account`, session cookie set. A wrong username and a wrong password give the
+  same 401 `invalid_credentials`.
+- `POST /auth/logout` → 204, the session is removed and the cookie cleared.
+  Without a session it is still a 204.
+- `GET /auth/me` → 200 `Account | null`.
+
+There is no password change or reset over the API; the admin resets passwords
+with the CLI.
+
+### Flags and admin
+
+Flags only mark an item. It stays visible until the admin decides.
+
+- `PUT /items/{id}/flag` (account) with `{ "reason": str | null }` (0–200) →
+  204. One flag per account per item; flagging again updates the reason.
+- `DELETE /items/{id}/flag` (account) → 204.
+- `GET /admin/flags?status=open|resolved` →
+  `{ "flags": [{ "item": ItemSummary, "flag_count": int, "reasons": [str],
+  "last_flagged_at": datetime }] }`, newest flag first. `status` defaults to
+  `open`. A new flag on a resolved item opens it again.
+- `POST /admin/flags/{item_id}/resolve` with `{ "action": "dismiss" | "delete" }`
+  → 204. `delete` soft-deletes the item.
+- `DELETE /items/{id}` (admin) → 204. Idempotent.
+- `POST /admin/items/bulk-delete` with
+  `{ "item_id": int, "by": "submitter" | "publisher", "dry_run": bool }` →
+  200 `{ "deleted": int }`. Deletes every item that shares the given item's
+  submitter IP hash, or its publisher label, so the hash never leaves the
+  server. `dry_run` only counts.
+- `DELETE /admin/accounts/{username}` → 204. Anonymizes the account as in
+  "Privacy". The admin account cannot anonymize itself.
 
 ## Open Publishing
 
@@ -434,6 +717,8 @@ These limit volume, not content.
 - Labels owned by keyed accounts are reserved (`accounts.publisher_name`). An
   anonymous submission using one gets 422 `reserved_publisher`, so nobody can
   post as our agent. Our agent always sends its name.
+- A keyed submission always carries its account's label. A missing `publisher`
+  is filled in; a different one gets 422 `publisher_mismatch`.
 
 ### Publisher leaderboard
 

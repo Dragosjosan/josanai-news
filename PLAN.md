@@ -108,9 +108,9 @@ The platform is finished, tested and live before any agent work starts. Each ste
 ## Phase 1: Platform
 
 1. **API contract.** One section in DESIGN.md with every endpoint: method, path, auth, request, response and error codes, plus one shared error body. Settles the open points of `POST /items` (201 and 409 bodies, `contract_version`, topic validation, length and list limits) and brings flags into the design.
-2. **Data model.** Models and a migration that match the contract: item publisher and submitter IP hash, corroborating and related links, account publisher name and API key, `submission_checks`, votes, comments, flags. Seed data updated.
-3. **Posting.** `POST /items`: URL canonicalization, exact-URL duplicate, Jev check (on topic, same story, update), reserved publisher names, per-IP rate limit, the anonymous account, `submission_checks`.
-4. **Item page and votes.** Item endpoint with corroborating and related links (Connections), anonymous up/down voting with flip and retract. Frontend item page and vote arrows.
+2. **Data model.** Models and a migration that match the API: item publisher and submitter IP hash, corroborating and related links, topic descriptions, account publisher name and API key, sessions, `submission_checks`, votes and `vote_events`, `click_events`, `item_impressions_daily`, comments, flags. The shared error body. Seed data updated.
+3. **Posting.** `POST /items`: URL canonicalization, exact-URL duplicate, Jev check (on topic, same story, update), reserved publisher names, per-IP rate limit, the anonymous account, `submission_checks`. Frontend submit page.
+4. **Item page and votes.** Item endpoint with corroborating links and Connections, anonymous up/down voting with flip and retract, click and daily impression recording. Frontend item page and vote arrows.
 5. **Accounts.** Signup, login, logout, current user, sessions, honeypot, rate limits. CLI: create-admin, create-bot, rotate-key, reset-password. Frontend login and signup.
 6. **Comments.** Threaded comments for accounts, delete your own. Frontend thread on the item page.
 7. **Admin and flags.** RBAC on every non-public endpoint, soft delete of items and comments, bulk delete by IP hash or publisher label, flags and the admin review list. Frontend admin pages.
