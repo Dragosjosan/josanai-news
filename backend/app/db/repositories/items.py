@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.db.models import Comment, Item, Topic, TopicTag
@@ -19,11 +19,7 @@ class RankCandidate:
     id: int
     upvotes: int
     downvotes: int
-    provenance_score: float | None
     created_at: datetime
-
-
-ArchiveKey = tuple[datetime, int]
 
 
 def _visible[*Ts](statement: Select[*Ts], feed_filter: FeedFilter) -> Select[*Ts]:
@@ -38,35 +34,14 @@ def _visible[*Ts](statement: Select[*Ts], feed_filter: FeedFilter) -> Select[*Ts
 
 
 def list_rank_candidates(
-    session: Session, feed_filter: FeedFilter, since: datetime
+    session: Session, feed_filter: FeedFilter, limit: int
 ) -> list[RankCandidate]:
-    statement = _visible(
-        select(Item.id, Item.upvotes, Item.downvotes, Item.provenance_score, Item.created_at),
-        feed_filter,
-    ).where(Item.created_at >= since)
-    return [RankCandidate(*row) for row in session.execute(statement)]
-
-
-def list_archive_keys(
-    session: Session,
-    feed_filter: FeedFilter,
-    before: datetime,
-    after: ArchiveKey | None,
-    limit: int,
-) -> list[ArchiveKey]:
-    statement = _visible(select(Item.created_at, Item.id), feed_filter).where(
-        Item.created_at < before
+    statement = (
+        _visible(select(Item.id, Item.upvotes, Item.downvotes, Item.created_at), feed_filter)
+        .order_by(Item.created_at.desc(), Item.id.desc())
+        .limit(limit)
     )
-    if after is not None:
-        created_at, item_id = after
-        statement = statement.where(
-            or_(
-                Item.created_at < created_at,
-                and_(Item.created_at == created_at, Item.id < item_id),
-            )
-        )
-    statement = statement.order_by(Item.created_at.desc(), Item.id.desc()).limit(limit)
-    return [(created_at, item_id) for created_at, item_id in session.execute(statement)]
+    return [RankCandidate(*row) for row in session.execute(statement)]
 
 
 def get_items_in_order(session: Session, ids: Sequence[int]) -> list[Item]:

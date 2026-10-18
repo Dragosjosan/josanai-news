@@ -6,7 +6,6 @@ from pydantic import BaseModel
 class FeedQuery(BaseModel):
     topic: str | None = None
     tag: str | None = None
-    cursor: str | None = None
 
 
 class ItemResponse(BaseModel):
@@ -22,6 +21,5 @@ class ItemResponse(BaseModel):
     created_at: datetime
 
 
-class FeedPageResponse(BaseModel):
+class FeedResponse(BaseModel):
     items: list[ItemResponse]
-    next_cursor: str | None

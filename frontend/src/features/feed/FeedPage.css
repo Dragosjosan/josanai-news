@@ -2,19 +2,3 @@
   padding: var(--space-5) 0 var(--space-5) 46px;
   color: var(--muted);
 }
-
-.feed-more {
-  padding: var(--space-2) 0 0 46px;
-}
-
-.feed-more-link {
-  all: unset;
-  color: var(--ink);
-  font-size: var(--hn-text-title);
-  cursor: pointer;
-}
-
-.feed-more-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}

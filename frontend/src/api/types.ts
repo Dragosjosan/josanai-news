@@ -18,9 +18,8 @@ export type FeedItem = {
   created_at: string
 }
 
-export type FeedPage = {
+export type Feed = {
   items: FeedItem[]
-  next_cursor: string | null
 }
 
 export type FeedFilters = {

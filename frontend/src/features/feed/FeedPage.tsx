@@ -3,7 +3,6 @@ import { ErrorState, LoadingState } from '../../components/AsyncState/AsyncState
 import ItemList from './components/ItemList.tsx'
 import TagFilter from './components/TagFilter.tsx'
 import { useFeed } from './useFeed.ts'
-import { useLoadMoreOnScroll } from './useLoadMoreOnScroll.ts'
 import './FeedPage.css'
 
 function FeedPage() {
@@ -12,33 +11,17 @@ function FeedPage() {
   const tag = searchParams.get('tag') ?? undefined
 
   const feed = useFeed({ topic, tag })
-  const sentinel = useLoadMoreOnScroll<HTMLDivElement>(
-    feed.loadMore,
-    feed.hasMore && feed.status === 'idle',
-  )
-  const isFirstLoad = feed.status === 'loading' && feed.items.length === 0
 
   return (
     <div className="feed-page">
       <TagFilter topic={topic} tag={tag} />
 
-      {isFirstLoad && <LoadingState label="Loading stories" />}
+      {feed.status === 'loading' && <LoadingState label="Loading stories" />}
       {feed.status === 'idle' && feed.items.length === 0 && <p className="feed-empty">No posts.</p>}
       {feed.items.length > 0 && <ItemList items={feed.items} />}
 
       {feed.status === 'error' && feed.error && (
         <ErrorState title="Could not load stories." error={feed.error} />
-      )}
-      {feed.hasMore && (
-        <div ref={sentinel} className="feed-more">
-          {feed.status === 'loading' ? (
-            <LoadingState label="Loading more" />
-          ) : (
-            <button type="button" className="feed-more-link" onClick={feed.loadMore}>
-              More
-            </button>
-          )}
-        </div>
       )}
     </div>
   )
