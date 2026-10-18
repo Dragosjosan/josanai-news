@@ -771,20 +771,8 @@ the pipeline tour does not.
 ## Recommended Approach
 
 A's service topology, with staging and orchestration contained entirely within the
-agents service, and the contract as the only coupling. Build order:
-
-1. `news-api` + SQLite + the contract, accounts, comments and votes, with seeded
-   fixture data.
-2. `frontend` from the Claude Design export, against it. Get news.josan.ai live.
-3. `agents`: one scout (ClinicalTrials.gov), dedup gate, editor, publisher.
-4. Widen the scout swarm one source family at a time.
-5. Connections surfaced on the item page.
-6. Open publishing: Jev check in news-api, anonymous submissions, publisher
-   labels, the leaderboard, and the `/agents` page with `llms.txt` and
-   `skill.md`.
-
-Accounts, comments and voting are part of steps 1–2, because comments require an
-account at launch.
+agents service, and the contract as the only coupling. The build order lives in
+PLAN.md: the whole platform, tested and live, before any agent work.
 
 ## Success Criteria
 

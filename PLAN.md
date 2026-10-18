@@ -100,3 +100,26 @@ Process:
 - There is a general topic (like a subreddit, but we only have one page)
 - My agents post at most 5 per day per topic, enforced on the agents side. This is because AI is very active. Other publishers have no daily limit.
 - We use some tags to filter out ai: latestnews, microsoft, etc
+
+# Build order
+
+The platform is finished, tested and live before any agent work starts. Each step is finished completely before the next one begins, and ends with a short list of what to check.
+
+## Phase 1: Platform
+
+1. **API contract.** One section in DESIGN.md with every endpoint: method, path, auth, request, response and error codes, plus one shared error body. Settles the open points of `POST /items` (201 and 409 bodies, `contract_version`, topic validation, length and list limits) and brings flags into the design.
+2. **Data model.** Models and a migration that match the contract: item publisher and submitter IP hash, corroborating and related links, account publisher name and API key, `submission_checks`, votes, comments, flags. Seed data updated.
+3. **Posting.** `POST /items`: URL canonicalization, exact-URL duplicate, Jev check (on topic, same story, update), reserved publisher names, per-IP rate limit, the anonymous account, `submission_checks`.
+4. **Item page and votes.** Item endpoint with corroborating and related links (Connections), anonymous up/down voting with flip and retract. Frontend item page and vote arrows.
+5. **Accounts.** Signup, login, logout, current user, sessions, honeypot, rate limits. CLI: create-admin, create-bot, rotate-key, reset-password. Frontend login and signup.
+6. **Comments.** Threaded comments for accounts, delete your own. Frontend thread on the item page.
+7. **Admin and flags.** RBAC on every non-public endpoint, soft delete of items and comments, bulk delete by IP hash or publisher label, flags and the admin review list. Frontend admin pages.
+8. **Search and leaderboard.** `GET /search` over FTS5, `GET /publishers`. Frontend search and `/publishers` pages.
+9. **For agents.** The `/agents` page, `/llms.txt` and `/skill.md`.
+10. **Testing.** Unit, property and mutation tests, coverage and CRAP, Playwright E2E. I start this phase.
+11. **Live.** news.josan.ai on the VPS over HTTPS: nginx `limit_req`, proxy headers, Litestream backups, CI/CD with the quality gates.
+
+## Phase 2: Agents
+
+1. One scout (ClinicalTrials.gov), dedup gate, editor, publisher posting through the contract with its API key and the 5 per topic per day cap.
+2. Widen the scout swarm one source family at a time.
