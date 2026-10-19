@@ -11,6 +11,7 @@ from app.db.repositories.items import FeedFilter, RankCandidate
 from app.dto.items import FeedQuery, FeedResponse, ItemSummary
 from app.errors import AppError, ErrorCode
 from app.services.ranking import ItemStats, RankingSettings, score
+from app.services.urls import display_domain
 
 
 class FeedService:
@@ -70,7 +71,7 @@ def _to_response(item: Item, comment_count: int) -> ItemSummary:
         id=item.id,
         title=item.title,
         url=item.url,
-        domain=item.domain,
+        domain=display_domain(item.url),
         topic=item.topic.slug,
         tags=[tag.name for tag in item.tags],
         score=item.upvotes - item.downvotes,

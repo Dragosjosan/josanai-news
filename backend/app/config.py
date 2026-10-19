@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///data/news.db"
     max_body_bytes: int = Field(default=64 * 1024, gt=0)
 
+    accounts_enabled: bool = False
+    post_requires_account: bool = False
+    comment_requires_account: bool = False
+
     feed_size: int = Field(default=70, gt=0)
     rank_candidates: int = Field(default=500, gt=0)
     rank_gravity: float = Field(default=1.0, gt=0)

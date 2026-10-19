@@ -18,8 +18,8 @@ class ErrorCode(StrEnum):
     UNKNOWN_TOPIC = "unknown_topic"
     UNKNOWN_TAG = "unknown_tag"
     OFF_TOPIC = "off_topic"
+    HARMFUL_CONTENT = "harmful_content"
     RESERVED_PUBLISHER = "reserved_publisher"
-    PUBLISHER_MISMATCH = "publisher_mismatch"
     PARENT_NOT_FOUND = "parent_not_found"
     RATE_LIMITED = "rate_limited"
     HTTP_ERROR = "http_error"
@@ -43,8 +43,8 @@ STATUS_BY_CODE: dict[ErrorCode, int] = {
     ErrorCode.UNKNOWN_TOPIC: 422,
     ErrorCode.UNKNOWN_TAG: 422,
     ErrorCode.OFF_TOPIC: 422,
+    ErrorCode.HARMFUL_CONTENT: 422,
     ErrorCode.RESERVED_PUBLISHER: 422,
-    ErrorCode.PUBLISHER_MISMATCH: 422,
     ErrorCode.PARENT_NOT_FOUND: 422,
     ErrorCode.RATE_LIMITED: 429,
     ErrorCode.HTTP_ERROR: 400,

@@ -1,7 +1,6 @@
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from urllib.parse import urlsplit
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -9,23 +8,21 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db.connection import build_engine, build_session_factory, session_scope
 from app.db.models import (
-    ANONYMOUS_USERNAME,
     Account,
     AccountKind,
     Comment,
-    Flag,
     Item,
-    ItemCorroboratingUrl,
-    ItemRelatedUrl,
-    RelationOrigin,
+    ItemLink,
+    LinkKind,
+    Report,
     Topic,
     TopicTag,
     Vote,
-    VoteEvent,
     utc_now,
 )
 
 BOT = "josan"
+POLICY_WATCH = "policy-watch"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,24 +42,24 @@ class _SeedItem:
 class _SeedComment:
     item: int
     parent: int | None
-    author: str
+    account: str | None
+    author: str | None
     hours_ago: float
     text: str
 
 
 @dataclass(frozen=True, slots=True)
-class _SeedFlag:
+class _SeedReport:
     item: int
-    author: str
     reason: str | None
 
 
 ACCOUNTS = (
-    (BOT, AccountKind.AGENT),
-    ("dragos", AccountKind.ADMIN),
-    ("mkessler", AccountKind.HUMAN),
-    ("lena_r", AccountKind.HUMAN),
-    ("tbauer", AccountKind.HUMAN),
+    ("dragos", AccountKind.USER, True),
+    ("mkessler", AccountKind.USER, False),
+    ("lena_r", AccountKind.USER, False),
+    (BOT, AccountKind.AGENT, False),
+    (POLICY_WATCH, AccountKind.AGENT, False),
 )
 
 SEED_ITEMS = (
@@ -119,7 +116,7 @@ SEED_ITEMS = (
     _SeedItem(
         9.1,
         "ai",
-        "policy-watch",
+        POLICY_WATCH,
         19,
         "EU AI Act: general-purpose model obligations taking effect in Q4",
         "https://digital-strategy.ec.europa.eu",
@@ -245,7 +242,7 @@ SEED_ITEMS = (
     _SeedItem(
         52,
         "ai",
-        "policy-watch",
+        POLICY_WATCH,
         40,
         "Benchmarks are saturating: the case for task-specific evals",
         "https://huyenchip.com",
@@ -267,6 +264,7 @@ SEED_COMMENTS = (
         1,
         None,
         "mkessler",
+        None,
         0.4,
         "Checkpointing between hops was the missing piece for long scrape jobs. Does resume replay tool calls or only messages?",
     ),
@@ -274,27 +272,31 @@ SEED_COMMENTS = (
         1,
         1,
         "dragos",
+        None,
         0.3,
         "Messages only, per the release notes. Tool calls need to be idempotent on your side.",
     ),
     _SeedComment(
         1,
         None,
-        "lena_r",
+        None,
+        "lena",
         0.2,
         "Typed message contracts between orchestrator and workers make the swarm far easier to test.",
     ),
     _SeedComment(
         2,
         None,
-        "tbauer",
+        None,
+        None,
         1.2,
         "Trough levels in the under-6 cohort are the number to watch. The full table is in the supplementary appendix.",
     ),
     _SeedComment(
         5,
         None,
-        "lena_r",
+        None,
+        "lena",
         6,
         "Five years of stable expression is meaningful. Durability past ten years remains open.",
     ),
@@ -302,49 +304,50 @@ SEED_COMMENTS = (
         7,
         None,
         "mkessler",
+        None,
         11,
         "Per-agent cost tracing is what makes the cheap-scraper / expensive-poster split measurable.",
     ),
     _SeedComment(
         8,
         None,
-        "tbauer",
+        None,
+        None,
         13,
         "Committee vote expected next week. Briefing documents are already public.",
     ),
 )
 
-SEED_FLAGS = (_SeedFlag(20, "mkessler", "Opinion piece, not news."),)
+SEED_REPORTS = (_SeedReport(20, "Opinion piece, not news."),)
 
 
 def seed_demo(session: Session, now: datetime) -> bool:
     if session.scalar(select(func.count()).select_from(Item)):
         return False
 
-    accounts = {name: _get_or_create_account(session, name, kind) for name, kind in ACCOUNTS}
-    anonymous = session.scalars(select(Account).where(Account.username == ANONYMOUS_USERNAME)).one()
+    accounts = {
+        username: _get_or_create_account(session, username, kind, admin)
+        for username, kind, admin in ACCOUNTS
+    }
     topics = {topic.slug: topic for topic in session.scalars(select(Topic))}
     tags = {(tag.topic_id, tag.name): tag for tag in session.scalars(select(TopicTag))}
 
     items: list[Item] = []
     for seed in SEED_ITEMS:
-        keyed = seed.publisher == BOT
+        agent = accounts.get(seed.publisher) if seed.publisher else None
         topic = topics[seed.topic]
         items.append(
             Item(
                 title=seed.title,
                 url=seed.url,
                 canonical_url=seed.url,
-                domain=_domain(seed.url),
                 topic=topic,
-                account=accounts[BOT] if keyed else anonymous,
+                account_id=agent.id if agent else None,
                 publisher=seed.publisher,
-                publisher_key=seed.publisher.lower() if seed.publisher else None,
-                submitter_ip_hash=None if keyed else _fake_hash(f"ip:{seed.publisher}"),
+                ip_hash=_fake_hash(f"ip:{seed.publisher}"),
                 tags=[tags[(topic.id, name)] for name in seed.tags],
-                corroborating=[
-                    ItemCorroboratingUrl(position=position, url=url)
-                    for position, url in enumerate(seed.corroborating)
+                links=[
+                    ItemLink(kind=LinkKind.CORROBORATING, url=url) for url in seed.corroborating
                 ],
                 created_at=now - timedelta(hours=seed.hours_ago),
             )
@@ -354,22 +357,19 @@ def seed_demo(session: Session, now: datetime) -> bool:
 
     for item, seed in zip(items, SEED_ITEMS, strict=True):
         for number in seed.related:
-            earlier = items[number - 1]
-            item.related.append(
-                ItemRelatedUrl(
-                    canonical_url=earlier.canonical_url,
-                    url=earlier.url,
-                    origin=RelationOrigin.SUBMITTED,
-                )
-            )
+            item.links.append(ItemLink(kind=LinkKind.RELATED, url=items[number - 1].canonical_url))
         _add_votes(session, item, seed.score)
 
     comments: list[Comment] = []
-    for comment_seed in SEED_COMMENTS:
+    for number, comment_seed in enumerate(SEED_COMMENTS):
+        visitor = comment_seed.account or comment_seed.author or f"guest-{number}"
         comment = Comment(
             item_id=items[comment_seed.item - 1].id,
             parent_id=comments[comment_seed.parent - 1].id if comment_seed.parent else None,
-            account_id=accounts[comment_seed.author].id,
+            account_id=accounts[comment_seed.account].id if comment_seed.account else None,
+            author=comment_seed.author,
+            voter_id=_fake_hash(f"voter:{visitor}")[:32],
+            ip_hash=_fake_hash(f"ip:{visitor}"),
             text=comment_seed.text,
             created_at=now - timedelta(hours=comment_seed.hours_ago),
         )
@@ -377,14 +377,14 @@ def seed_demo(session: Session, now: datetime) -> bool:
         session.flush()
         comments.append(comment)
 
-    for flag_seed in SEED_FLAGS:
+    for number, report_seed in enumerate(SEED_REPORTS):
         session.add(
-            Flag(
-                item_id=items[flag_seed.item - 1].id,
-                account_id=accounts[flag_seed.author].id,
-                reason=flag_seed.reason,
+            Report(
+                item_id=items[report_seed.item - 1].id,
+                voter_id=_fake_hash(f"voter:reporter-{number}")[:32],
+                ip_hash=_fake_hash(f"ip:reporter-{number}"),
+                reason=report_seed.reason,
                 created_at=now,
-                updated_at=now,
             )
         )
     return True
@@ -393,40 +393,28 @@ def seed_demo(session: Session, now: datetime) -> bool:
 def _add_votes(session: Session, item: Item, count: int) -> None:
     for number in range(count):
         voter_id = _fake_hash(f"voter:{item.id}:{number}")[:32]
-        ip_hash = _fake_hash(f"ip:{voter_id}")
-        voted_at = item.created_at + timedelta(minutes=number + 1)
         session.add(
             Vote(
                 item_id=item.id,
                 voter_id=voter_id,
-                ip_hash=ip_hash,
+                ip_hash=_fake_hash(f"ip:{voter_id}"),
                 direction=1,
-                created_at=voted_at,
-                updated_at=voted_at,
-            )
-        )
-        session.add(
-            VoteEvent(
-                item_id=item.id,
-                voter_id=voter_id,
-                ip_hash=ip_hash,
-                direction=1,
-                created_at=voted_at,
+                created_at=item.created_at + timedelta(minutes=number + 1),
             )
         )
     item.upvotes = count
 
 
-def _get_or_create_account(session: Session, username: str, kind: AccountKind) -> Account:
+def _get_or_create_account(
+    session: Session, username: str, kind: AccountKind, admin: bool
+) -> Account:
     account = session.scalar(select(Account).where(Account.username == username))
     if account is None:
-        agent = kind is AccountKind.AGENT
         account = Account(
             username=username,
-            username_key=username.lower(),
             kind=kind,
-            publisher_name=username if agent else None,
-            publisher_key=username.lower() if agent else None,
+            is_admin=admin,
+            api_key_hash=_fake_hash(f"key:{username}") if kind is AccountKind.AGENT else None,
         )
         session.add(account)
         session.flush()
@@ -435,11 +423,6 @@ def _get_or_create_account(session: Session, username: str, kind: AccountKind) -
 
 def _fake_hash(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
-
-
-def _domain(url: str) -> str:
-    host = urlsplit(url).hostname or ""
-    return host.removeprefix("www.")
 
 
 def main() -> None:

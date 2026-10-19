@@ -11,7 +11,6 @@ class Topic(Base):
     slug: Mapped[str] = mapped_column(String(32), unique=True)
     name: Mapped[str] = mapped_column(String(64))
     description: Mapped[str] = mapped_column(Text, default="")
-    sort_order: Mapped[int] = mapped_column(default=0)
 
     tags: Mapped[list["TopicTag"]] = relationship(back_populates="topic", order_by="TopicTag.name")
 
