@@ -1,8 +1,11 @@
 export type Topic = {
   slug: string
   name: string
+  description: string
   tags: string[]
 }
+
+export type VoteDirection = 'up' | 'down'
 
 export type FeedItem = {
   id: number
@@ -13,8 +16,9 @@ export type FeedItem = {
   tags: string[]
   score: number
   comment_count: number
-  submitted_by: string | null
+  publisher: string | null
   created_at: string
+  viewer_vote: VoteDirection | null
 }
 
 export type Feed = {
@@ -24,4 +28,12 @@ export type Feed = {
 export type FeedFilters = {
   topic?: string
   tag?: string
+}
+
+export type ErrorBody = {
+  error: {
+    code: string
+    message: string
+    details: Record<string, unknown> | null
+  }
 }

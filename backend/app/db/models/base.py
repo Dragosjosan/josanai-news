@@ -1,13 +1,23 @@
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import MetaData, String
+from sqlalchemy import Enum, MetaData, String
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.types import TypeDecorator
 
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def string_enum(enum_class: type[StrEnum], length: int = 16) -> Enum:
+    return Enum(
+        enum_class,
+        native_enum=False,
+        length=length,
+        values_callable=lambda members: [member.value for member in members],
+    )
 
 
 class UtcDateTime(TypeDecorator[datetime]):

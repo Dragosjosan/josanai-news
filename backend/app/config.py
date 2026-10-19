@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     app_name: str = "news-api"
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite:///data/news.db"
+    max_body_bytes: int = Field(default=64 * 1024, gt=0)
 
     feed_size: int = Field(default=70, gt=0)
     rank_candidates: int = Field(default=500, gt=0)

@@ -4,10 +4,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.db.models import AccountKind, Item, utc_now
+from app.db.models import Item, utc_now
 from app.db.repositories import items as item_repo
+from app.db.repositories import topics as topic_repo
 from app.db.repositories.items import FeedFilter, RankCandidate
-from app.dto.items import FeedQuery, FeedResponse, ItemResponse
+from app.dto.items import FeedQuery, FeedResponse, ItemSummary
+from app.errors import AppError, ErrorCode
 from app.services.ranking import ItemStats, RankingSettings, score
 
 
@@ -29,6 +31,7 @@ class FeedService:
         )
 
     def get_front_page(self, query: FeedQuery) -> FeedResponse:
+        self._check_filters(query)
         feed_filter = FeedFilter(query.topic, query.tag)
         candidates = item_repo.list_rank_candidates(
             self._session, feed_filter, self._candidate_limit
@@ -39,6 +42,14 @@ class FeedService:
         return FeedResponse(
             items=[_to_response(item, comment_counts.get(item.id, 0)) for item in items]
         )
+
+    def _check_filters(self, query: FeedQuery) -> None:
+        if query.topic is not None and not topic_repo.topic_exists(self._session, query.topic):
+            raise AppError(ErrorCode.UNKNOWN_TOPIC, f"Unknown topic '{query.topic}'.")
+        if query.tag is not None and not topic_repo.tag_exists(
+            self._session, query.tag, query.topic
+        ):
+            raise AppError(ErrorCode.UNKNOWN_TAG, f"Unknown tag '{query.tag}'.")
 
     def _rank(self, candidates: list[RankCandidate]) -> list[int]:
         now = self._clock()
@@ -54,8 +65,8 @@ class FeedService:
         return [c.id for c in ordered]
 
 
-def _to_response(item: Item, comment_count: int) -> ItemResponse:
-    return ItemResponse(
+def _to_response(item: Item, comment_count: int) -> ItemSummary:
+    return ItemSummary(
         id=item.id,
         title=item.title,
         url=item.url,
@@ -64,6 +75,7 @@ def _to_response(item: Item, comment_count: int) -> ItemResponse:
         tags=[tag.name for tag in item.tags],
         score=item.upvotes - item.downvotes,
         comment_count=comment_count,
-        submitted_by=None if item.account.kind is AccountKind.AGENT else item.account.username,
+        publisher=item.publisher,
         created_at=item.created_at,
+        viewer_vote=None,
     )

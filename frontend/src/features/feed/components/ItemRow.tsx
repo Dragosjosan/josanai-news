@@ -27,7 +27,7 @@ function ItemRow({ item, rank }: ItemRowProps) {
         <div className="item-meta">
           <span>
             {pluralize(item.score, 'point')}
-            {item.submitted_by && ` by ${item.submitted_by}`}
+            {item.publisher && ` by ${item.publisher}`}
           </span>
           <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>
             {timeAgo(item.created_at)}

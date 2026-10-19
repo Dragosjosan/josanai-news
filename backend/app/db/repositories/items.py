@@ -50,7 +50,7 @@ def get_items_in_order(session: Session, ids: Sequence[int]) -> list[Item]:
     statement = (
         select(Item)
         .where(Item.id.in_(ids))
-        .options(joinedload(Item.topic), joinedload(Item.account), selectinload(Item.tags))
+        .options(joinedload(Item.topic), selectinload(Item.tags))
     )
     by_id = {item.id: item for item in session.scalars(statement)}
     return [by_id[item_id] for item_id in ids if item_id in by_id]

@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.base import Base
@@ -10,6 +10,7 @@ class Topic(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column(String(32), unique=True)
     name: Mapped[str] = mapped_column(String(64))
+    description: Mapped[str] = mapped_column(Text, default="")
     sort_order: Mapped[int] = mapped_column(default=0)
 
     tags: Mapped[list["TopicTag"]] = relationship(back_populates="topic", order_by="TopicTag.name")

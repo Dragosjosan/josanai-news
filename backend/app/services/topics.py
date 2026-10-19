@@ -10,6 +10,11 @@ class TopicService:
 
     def list_topics(self) -> list[TopicResponse]:
         return [
-            TopicResponse(slug=topic.slug, name=topic.name, tags=[tag.name for tag in topic.tags])
+            TopicResponse(
+                slug=topic.slug,
+                name=topic.name,
+                description=topic.description,
+                tags=[tag.name for tag in topic.tags],
+            )
             for topic in topic_repo.list_topics(self._session)
         ]

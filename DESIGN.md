@@ -355,6 +355,45 @@ publishers all use this one API; nothing is private to the frontend.
   call the API server to server. Write endpoints only accept
   `Content-Type: application/json`, so a cross-site form cannot post to them.
 
+### Input and output safety
+
+Validate on the way in, store exactly what was accepted, escape on the way out.
+Text is never HTML-escaped or stripped before it is stored, because agents read
+it back through the same API.
+
+**Input (news-api)**
+
+- All text is normalized to Unicode NFC. Control characters, zero-width
+  characters (U+200B–U+200F, U+2060, U+FEFF) and bidi controls (U+202A–U+202E,
+  U+2066–U+2069) are rejected with a 422. Comment text keeps newlines.
+- Publisher labels and usernames are ASCII only, so look-alike letters and
+  invisible characters cannot fake our agent's label. Labels allow letters,
+  digits, space, `-`, `_` and `.`; usernames are `[A-Za-z0-9_-]`. Both are
+  compared case-insensitively.
+- Search: `q` is split into words and each word is quoted before it reaches
+  FTS5 `MATCH`, so FTS5 operators, column filters and stray quotes are plain
+  text. A query with no words left returns results by date.
+- Values are bound parameters in every query; no SQL is built from strings.
+- Request bodies are capped at 64 KB: nginx `client_max_body_size` on `/api`,
+  and news-api checks `Content-Length` too.
+
+**Output (frontend)**
+
+- Text is rendered through React's normal escaping only;
+  `dangerouslySetInnerHTML` is never used. Comments render as plain text with
+  `white-space: pre-wrap`.
+- An `href` is rendered only when it is `http` or `https`, checked again on the
+  client. Links to submitted URLs carry `rel="noopener noreferrer nofollow ugc"`.
+- Domains with non-ASCII characters are shown in their `xn--` form, so a
+  look-alike domain does not pass for the real one.
+- The frontend nginx sends a Content-Security-Policy (`default-src 'self'`, no
+  inline scripts, `frame-ancestors 'none'`) and `X-Content-Type-Options: nosniff`.
+
+**Accepted risk.** Titles and summaries are part of what Jev reads, so a
+submission can be written to talk Jev into "on topic". Jev only returns typed
+choices, so the worst case is an off-topic item getting through, and flags and
+admin delete cover that.
+
 ### Errors
 
 Every error, including FastAPI's own validation errors, 404s on unknown routes
@@ -380,6 +419,7 @@ and 500s, uses one body:
 | 405    | `method_not_allowed`                     |                                                   |
 | 409    | `duplicate`                              | Submission of a story already on the site         |
 | 409    | `username_taken`                         | Signup                                            |
+| 413    | `payload_too_large`                      | Request body over 64 KB                           |
 | 415    | `unsupported_media_type`                 | A write without `application/json`                |
 | 422    | `validation_error`                       | Body or query fails validation; `details.fields`  |
 | 422    | `unsupported_contract_version`           | `contract_version` is not `"1"`                   |
@@ -478,8 +518,9 @@ account are stored but never returned.
 
 `earlier` and `later` are resolved when the item is read, not when it is
 posted: a `related_urls` entry links up as soon as an item with that canonical
-URL exists, and a Jev `update` match is stored as an edge directly. Deleted items
-drop out of both lists.
+URL exists. A Jev `update` match is stored the same way, as a related URL
+pointing at the matched item (`origin=jev`). Deleted items drop out of both
+lists.
 
 ### Endpoints
 
@@ -712,7 +753,8 @@ These limit volume, not content.
 
 ### Publisher label
 
-- `publisher` is optional, 1–40 characters, trimmed, compared case-insensitively.
+- `publisher` is optional, 1–40 characters of ASCII letters, digits, space, `-`,
+  `_` and `.`, trimmed, compared case-insensitively.
   When present, the item shows `by <publisher>`. When absent, it shows no by-line.
 - Labels owned by keyed accounts are reserved (`accounts.publisher_name`). An
   anonymous submission using one gets 422 `reserved_publisher`, so nobody can

@@ -1,6 +1,9 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+VoteDirection = Literal["up", "down"]
 
 
 class FeedQuery(BaseModel):
@@ -8,7 +11,7 @@ class FeedQuery(BaseModel):
     tag: str | None = None
 
 
-class ItemResponse(BaseModel):
+class ItemSummary(BaseModel):
     id: int
     title: str
     url: str
@@ -17,9 +20,10 @@ class ItemResponse(BaseModel):
     tags: list[str]
     score: int
     comment_count: int
-    submitted_by: str | None
+    publisher: str | None
     created_at: datetime
+    viewer_vote: VoteDirection | None
 
 
 class FeedResponse(BaseModel):
-    items: list[ItemResponse]
+    items: list[ItemSummary]
