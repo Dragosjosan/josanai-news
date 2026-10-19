@@ -16,7 +16,8 @@ export type FeedItem = {
   tags: string[]
   score: number
   comment_count: number
-  publisher: string | null
+  username: string | null
+  label: string | null
   created_at: string
   viewer_vote: VoteDirection | null
 }
@@ -28,6 +29,13 @@ export type Feed = {
 export type FeedFilters = {
   topic?: string
   tag?: string
+}
+
+export type SubmitItemBody = {
+  url: string
+  title: string
+  topic: string
+  tags: string[]
 }
 
 export type ErrorBody = {

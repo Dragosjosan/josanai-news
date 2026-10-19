@@ -13,7 +13,6 @@ class Comment(Base):
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), index=True)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("comments.id"))
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))
-    author: Mapped[str | None] = mapped_column(String(40))
     voter_id: Mapped[str] = mapped_column(String(32))
     ip_hash: Mapped[str] = mapped_column(String(64))
     text: Mapped[str] = mapped_column(Text)

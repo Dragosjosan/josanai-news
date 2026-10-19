@@ -2,6 +2,7 @@ import type { FeedFilters } from '../api/types.ts'
 
 export const paths = {
   home: '/',
+  submit: '/submit',
 } as const
 
 export function feedUrl({ topic, tag }: FeedFilters = {}): string {

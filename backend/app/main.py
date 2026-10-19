@@ -8,6 +8,7 @@ from app.api.middleware.body_limit import BodyLimitMiddleware
 from app.api.middleware.json_only import JsonOnlyMiddleware
 from app.api.router import api_router
 from app.api.routes import health
+from app.clients.jev import JevClient
 from app.config import Settings, settings
 from app.db.connection import build_engine, build_session_factory, prepare_database_directory
 
@@ -15,6 +16,12 @@ from app.db.connection import build_engine, build_session_factory, prepare_datab
 def create_app(app_settings: Settings | None = None) -> FastAPI:
     config = app_settings or settings
     engine = build_engine(config.database_url)
+    jev = JevClient(
+        api_key=config.jev_api_key.get_secret_value() if config.jev_api_key else None,
+        base_url=config.jev_base_url,
+        model=config.jev_model,
+        timeout_seconds=config.jev_timeout_seconds,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -22,11 +29,13 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
+            jev.close()
             engine.dispose()
 
     app = FastAPI(title=config.app_name, lifespan=lifespan)
     app.state.settings = config
     app.state.session_factory = build_session_factory(engine)
+    app.state.jev = jev
     register_error_handlers(app)
     app.add_middleware(JsonOnlyMiddleware)
     app.add_middleware(BodyLimitMiddleware, max_bytes=config.max_body_bytes)

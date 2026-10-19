@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import make_url
 
@@ -20,6 +20,20 @@ class Settings(BaseSettings):
     accounts_enabled: bool = False
     post_requires_account: bool = False
     comment_requires_account: bool = False
+
+    ip_hash_salt: SecretStr = SecretStr("dev-salt")
+    submit_per_hour: int = Field(default=10, gt=0)
+
+    jev_api_key: SecretStr | None = None
+    jev_base_url: str = "https://api.typesafe.ai"
+    jev_model: str = "jev-1.13.0"
+    jev_timeout_seconds: float = Field(default=10.0, gt=0)
+    jev_retry_after_seconds: int = Field(default=30, gt=0)
+    jev_harmful_min: float = Field(default=0.8, ge=0, le=1)
+    jev_off_topic_min: float = Field(default=0.8, ge=0, le=1)
+    jev_same_story_min: float = Field(default=0.85, ge=0, le=1)
+    jev_shortlist_size: int = Field(default=10, gt=0)
+    jev_shortlist_days: int = Field(default=30, gt=0)
 
     feed_size: int = Field(default=70, gt=0)
     rank_candidates: int = Field(default=500, gt=0)

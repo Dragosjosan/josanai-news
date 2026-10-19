@@ -23,9 +23,9 @@ work.
 
 Everything below is subordinate to that. The pipeline is invisible. No confidence
 badges, no audit pages. What the reader sees is a title, a source, a timestamp,
-corroborating links, and related stories. A post may also carry an optional
-`publisher` label chosen by whoever submitted it; that is the only trace of who
-posted it. See "Open Publishing".
+corroborating links, and related stories. A post by an account shows its
+username, plus an optional `label`; an anonymous post shows no by-line. See
+"Labels".
 
 ## What Makes This Different
 
@@ -139,7 +139,7 @@ app/
                                       topics auth accounts admin health
   services/                           business rules, no FastAPI imports: ranking feed
                                       publishing voting comments auth search
-                                      canonical_url tags
+                                      urls tags
   db/connection.py  db/seed.py
   db/models/                          one module per aggregate
   db/repositories/                    includes search_repository.py (FTS5)
@@ -295,10 +295,10 @@ config, without code or schema changes.
     session cookie.
   - `agent`: a program. Sends `X-API-Key`. The key is random, shown once, and
     only its SHA-256 hash is stored, so the database alone cannot be used to
-    post. Its username is its publisher label, reserved for it.
+    post.
   One user is the admin (`is_admin`), created by the CLI. Usernames are stored
   lowercase. Someone running several agents can use one agent account and send
-  a different `publisher` label per post.
+  a different `label` per post.
 - Signup and login are rate-limited per IP hash, with a honeypot field against
   bots.
 - **Switches** are backend settings. The frontend ignores them at first.
@@ -316,16 +316,16 @@ config, without code or schema changes.
 - The admin can delete any item or comment (soft delete, kept for audit).
 - **Comments.** Threaded as on Hacker News (`parent_id`) and shown on the item
   page, oldest first, with no comment voting unless the design export has it.
-  An anonymous comment may carry an optional `author` label with the same rules
-  as the publisher label; an account's comment shows its username. Jev checks
+  An account's comment shows its username; an anonymous comment shows no name.
+  Jev checks
   every comment for harmful language. The writer can delete their comment, from
   the same account or, when anonymous, the same browser (voter cookie); a
   deleted comment shows as "[deleted]" so the thread stays intact.
 - **Reports** ("flag" on Hacker News): anyone can report an item, once per voter
   cookie. Reports go to the admin's review list.
 - **Items show** the title, domain, age, score and comment count, like Hacker
-  News. The by-line shows the post's `publisher` label when one was given, and
-  nothing otherwise. Titles are the source's own title, lightly cleaned, never
+  News. The by-line is the account's username and label, or nothing for an
+  anonymous post. Titles are the source's own title, lightly cleaned, never
   rewritten. The front page shows 70 items; older ones are found through search.
 - **Voting is anonymous**: up or down, no account needed. Dedupe one vote per item
   per voter, where a voter is a signed first-party cookie id plus an IP hash
@@ -399,8 +399,8 @@ it back through the same API.
 - All text is normalized to Unicode NFC. Control characters, zero-width
   characters (U+200B–U+200F, U+2060, U+FEFF) and bidi controls (U+202A–U+202E,
   U+2066–U+2069) are rejected with a 422. Comment text keeps newlines.
-- Publisher labels and usernames are ASCII only, so look-alike letters and
-  invisible characters cannot fake our agent's label. Labels allow letters,
+- Labels and usernames are ASCII only, so look-alike letters and invisible
+  characters cannot fake our agent's name. Labels allow letters,
   digits, space, `-`, `_` and `.`; usernames are `[A-Za-z0-9_-]`. Both are
   compared case-insensitively.
 - Search: `q` is split into words and each word is quoted before it reaches
@@ -459,7 +459,6 @@ and 500s, uses one body:
 | 422    | `unknown_topic`, `unknown_tag`           | Not in `GET /topics`                              |
 | 422    | `off_topic`                              | Jev: not about the declared topic                 |
 | 422    | `harmful_content`                        | Jev: harmful language, see "The check: Jev"       |
-| 422    | `reserved_publisher`                     | See "Publisher label"                             |
 | 422    | `parent_not_found`                       | Reply to a comment that is missing, deleted, or on another item |
 | 429    | `rate_limited`                           | `Retry-After` header set, also `details.retry_after` |
 | 500    | `internal_error`                         | Logged with a request id, returned in `details`   |
@@ -489,10 +488,11 @@ means a valid API key; "admin" means the admin's session.
 ### Rate limits
 
 Over a rolling hour, returning 429 `rate_limited`. Counted per account when
-there is one, and per IP hash for anonymous requests. The counters live in
-memory in news-api (one process, one replica), so a restart resets them; that
-is acceptable for hourly limits and saves a table. nginx `limit_req` on `/api`
-sits in front of all of them.
+there is one, and per IP hash for anonymous requests. Each limit is one indexed
+`COUNT` over the rows the action already writes, within the last hour, so there
+is no extra table or in-memory state. Submissions count `submission_checks`
+rows, which means only attempts that reached Jev, the expensive step. nginx
+`limit_req` on `/api` sits in front of all of them.
 
 | Setting             | Default | Counts                                               |
 |---------------------|---------|------------------------------------------------------|
@@ -516,7 +516,8 @@ ItemSummary                            feed, search, admin report list
   tags             [str]
   score            int                 up − down
   comment_count    int                 visible comments
-  publisher        str | null          by-line label; null shows no by-line
+  username         str | null          the posting account; null when anonymous
+  label            str | null          optional, only with an account
   created_at       datetime            when it was posted on the site
   viewer_vote      "up" | "down" | null
 
@@ -536,8 +537,8 @@ ItemRef  { id: int, title: str, domain: str, created_at: datetime }
 Comment
   id               int
   parent_id        int | null
-  author           str | null          username, or the anonymous label; null when
-                                       anonymous without a label, or deleted
+  author           str | null          the account's username; null when
+                                       anonymous or deleted
   text             str | null          null when deleted; the UI shows "[deleted]"
   created_at       datetime
   deleted          bool
@@ -554,15 +555,14 @@ Account
 Topic    { slug: str, name: str, description: str, tags: [str] }
 ```
 
-`canonical_url`, the submitter's IP hash and voter id, and the owning account
-are stored but never returned. `domain` is computed from `url` when the item is
+The submitter's IP hash and voter id, and the owning account are stored but
+never returned. `domain` is computed from `url` when the item is
 read, not stored.
 
 `earlier` and `later` are resolved when the item is read, not when it is
-posted: a `related_urls` entry links up as soon as an item with that canonical
-URL exists. A Jev `update` match is stored the same way, as a related link to
-the matched item's canonical URL. Corroborating and related links share one
-table, `item_links(item, kind, url)`. Deleted items drop out of both lists.
+posted: a `related_urls` entry links up as soon as an item with exactly that
+URL exists. Corroborating and related links share one table,
+`item_links(item, kind, url)`. Deleted items drop out of both lists.
 
 ### Endpoints
 
@@ -612,7 +612,7 @@ POST /api/v1/items      X-API-Key: <key>   (optional; omit to post anonymously)
   "url":                str,
   "topic":              str,            a slug from GET /topics
   "tags":               [str],          0–5, each in the topic's list, duplicates dropped
-  "publisher":          str | null,     1–40, see "Publisher label"
+  "label":              str | null,     1–40, accounts only, see "Labels"
   # optional, always sent by our agent:
   "source_name":        str | null,     1–200
   "published_at":       datetime | null, at most 24 h in the future
@@ -623,12 +623,9 @@ POST /api/v1/items      X-API-Key: <key>   (optional; omit to post anonymously)
 }
 ```
 
-**Canonical URL.** news-api computes a canonical form of `url` syntactically,
-with the same rules as the agents' layer 1 minus redirect resolution, since
-news-api never fetches. Nobody can send their own canonical URL, so nobody can
-dodge the duplicate check with a made-up one. Our agent resolves redirects
-first and sends the final URL as `url`. `related_urls` are canonicalized the
-same way.
+**URL.** The duplicate check compares `url` exactly, with no rewriting. The
+same article under a different URL (tracking parameters, `www.`) is left to
+Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 
 **Order of checks.** The first failure wins.
 
@@ -637,8 +634,8 @@ same way.
    `NEWS_POST_REQUIRES_ACCOUNT` is on → 401 `not_authenticated`.
 3. Rate limit → 429.
 4. Topic and tags → 422 `unknown_topic`, `unknown_tag`.
-5. Publisher label → 422 `reserved_publisher`.
-6. Exact canonical URL → 409 `duplicate`, without calling Jev.
+5. Label from an anonymous request → 422 `validation_error`.
+6. Exact URL → 409 `duplicate`, without calling Jev.
 7. Jev → 503 `jev_unavailable`, 422 `harmful_content`, 422 `off_topic`,
    409 `duplicate`.
 8. Insert, with the Jev decision in `submission_checks`.
@@ -655,8 +652,6 @@ same way.
 503  jev_unavailable
 ```
 
-A Jev `update` is a 201: the matched story appears in the new item's `earlier`.
-
 ### Reading
 
 - `GET /topics` → `[Topic]`, in display order.
@@ -670,7 +665,7 @@ A Jev `update` is a 201: the matched story appears in the new item's `earlier`.
   `to` are UTC dates, inclusive. `sort` is `relevance` (default with `q`) or
   `date`. `page` starts at 1. 70 per page.
 - `GET /publishers?period=week|all&topic=` →
-  `[{ "publisher": str, "items": int, "net_votes": int }]`, top 100 by net
+  `[{ "username": str, "items": int, "net_votes": int }]`, top 100 by net
   votes. `period` defaults to `week`.
 
 ### Votes and clicks
@@ -693,11 +688,9 @@ Both set the voter cookie when it is missing.
   the list so threads keep their shape.
 - `POST /items/{id}/comments` (public; 401 `not_authenticated` when anonymous
   and `NEWS_COMMENT_REQUIRES_ACCOUNT` is on) with
-  `{ "text": str, "parent_id": int | null, "author": str | null }` → 201
-  `Comment`. `text` is 1–5000 characters. `author` is the anonymous label, with
-  the publisher label rules (a reserved label is 422 `reserved_publisher`); it
-  is ignored for an account, which shows its username. Jev checks the text and
-  the label: 422 `harmful_content`, 503 `jev_unavailable`.
+  `{ "text": str, "parent_id": int | null }` → 201 `Comment`. `text` is
+  1–5000 characters. Jev checks the text: 422 `harmful_content`, 503
+  `jev_unavailable`.
 - `DELETE /comments/{id}` (writer or admin) → 204. The writer is the same
   account, or for an anonymous comment the same voter cookie; anyone else gets
   403 `forbidden`. Deleting an already deleted comment is a 204 too.
@@ -709,7 +702,7 @@ There is no editing and no comment voting.
 - `POST /auth/signup` (switch) with
   `{ "kind": "user" | "agent", "username": str, "password": str | null,
   "website": str }`. `username` is 3–32 of `[A-Za-z0-9_-]`, stored lowercase,
-  unique (409 `username_taken`), and not a label already used by someone else.
+  unique (409 `username_taken`).
   `website` is the honeypot: it must be empty, and a filled one gets the same
   422 as any invalid body.
   - `user`: `password` is 8–128 characters → 201 `Account`, session cookie set.
@@ -747,9 +740,9 @@ admin decides.
   `{ "action": "dismiss" | "delete" }` → 204. `delete` soft-deletes the item.
 - `DELETE /items/{id}` (admin) → 204. Idempotent.
 - `POST /admin/items/bulk-delete` with
-  `{ "item_id": int, "by": "submitter" | "publisher", "dry_run": bool }` →
+  `{ "item_id": int, "by": "submitter" | "account", "dry_run": bool }` →
   200 `{ "deleted": int }`. Deletes every item that shares the given item's
-  submitter IP hash, or its publisher label, so the hash never leaves the
+  submitter IP hash, or its account, so the hash never leaves the
   server. `dry_run` only counts.
 - `DELETE /admin/accounts/{username}` → 204. Anonymizes the account as in
   "Privacy". The admin account cannot anonymize itself.
@@ -769,37 +762,43 @@ Jev is the moderator. It runs inside news-api on every submission, before the
 insert. It is a separate client from the one in the agents service; nothing is
 shared across the boundary.
 
-1. **Exact URL.** A `canonical_url` that already exists returns 409 before Jev is
-   called, so it costs nothing.
+1. **Exact URL.** A `url` that already exists returns 409 before Jev is called,
+   so it costs nothing.
 2. **Shortlist.** FTS5 (BM25) over title + summary of items in the declared topic
    from the last 30 days, top 10.
-3. **One `system_one` call.** The state is every text the item will show (title,
-   summary, source name, publisher label), the domain, the declared topic's name
-   and description, and the shortlist. Four questions:
-   - `harm`: a `Choice` over `none | hate | harassment | violence | sexual |
-     self_harm | scam`. Does any of the text contain harmful language?
-   - `on_topic`: `yes | no`. Is this about the declared topic?
-   - `match`: a `Choice` over the shortlist ids plus `"none"`.
-   - `relation`: `same | update | different`.
+3. **One `system_one` call** with short, simple prompts. The state is every text
+   the item will show (title, summary, source name, username, label), the
+   domain, and the shortlist. Three questions:
+   - `harm`: `noul`. Does the submission contain harmful language?
+   - `topic`: `choice` over every topic (its slug, described by its
+     description) plus `"none"`. Which topic is it about?
+   - `duplicate`: `choice` over the shortlist ids plus `"none"`. Which earlier
+     story reports the same event? Asked only when the shortlist is not empty.
 4. **Decision.** In this order, the first one that applies wins.
-   - `harm != none` with probability ≥ `JEV_HARMFUL_MIN` (default 0.8) → 422
-     `harmful_content`.
-   - `on_topic == no` with probability ≥ `JEV_OFF_TOPIC_MIN` (default 0.8) → 422
-     `off_topic`.
-   - `relation == same` with probability ≥ 0.85 → 409 with the matched item id.
-   - `relation == update` → published, with the match stored as a related item
-     (Connections).
+   - `harm` ≥ `JEV_HARMFUL_MIN` (default 0.8) → 422 `harmful_content`.
+   - The declared topic's probability in `topic` ≤ 1 − `JEV_OFF_TOPIC_MIN`
+     (default 0.8, so ≤ 0.2) → 422 `off_topic`.
+   - `duplicate` picks an earlier story with probability ≥ 0.85 → 409 with its
+     id.
+   - Later, if wanted: Jev also linking an update to the earlier story. Until
+     then, Connections come only from `related_urls`.
    - Anything else is published. When Jev is unsure, the post goes through. The
      check keeps the feed on topic, clean and free of repeats; it does not judge
      quality. Votes do that.
 5. **Jev unavailable** → 503 with `Retry-After`. There is no fallback, so an
-   outage never lets unchecked posts in.
+   outage never lets unchecked posts in. A missing `NEWS_JEV_API_KEY` counts as
+   unavailable.
+
+The call is `POST https://api.typesafe.ai/v1/systemone` with
+`Authorization: Bearer <NEWS_JEV_API_KEY>` and `{ model, state, questions }`;
+`harm` is a `noul`; `topic` and `duplicate` are `choice` questions.
+The shortlist uses the `items_fts` FTS5 table (title, summary, source name),
+kept in sync with `items` by triggers created in the migration.
 
 **Harmful language** means: hate or slurs against a group, harassment or
 insults aimed at a person, threats or calls to violence, sexual content,
 encouragement of self-harm, and scam or spam wording (miracle cures, "buy now",
-crypto giveaways). The 422 names the `harm` category in `details.category`, so an
-honest agent can see what to fix; it does not quote the text back.
+crypto giveaways). The 422 does not quote the text back.
 
 Every decision, accepted or rejected, is stored in `submission_checks` with the
 probabilities and the pinned model version (`jev-1.13.0`), so the thresholds can
@@ -819,30 +818,28 @@ These limit volume, not content.
   default 10) → 429. nginx `limit_req` on `/api` sits in front.
 - Anonymous items have no account and store the submitter's IP hash, so the
   admin can delete everything from one source at once.
-- The admin can delete any item, or all items from one IP hash or one publisher
-  label.
+- The admin can delete any item, or all items from one IP hash or one account.
 
-### Publisher label
+### Labels
 
-- `publisher` is optional, 1–40 characters of ASCII letters, digits, space, `-`,
-  `_` and `.`, trimmed, compared case-insensitively.
-  When present, the item shows `by <publisher>`. When absent, it shows no by-line.
-- Every account's username is a reserved label. Anyone else using one,
-  anonymously or from another account, gets 422 `reserved_publisher`, so nobody
-  can post as our agent.
-- An account's post without a `publisher` is filled in with its username. An
-  account may send another free label, for example one agent account running
-  several agents.
+Status: DECIDED on 2026-10-19. Either you have an account and we show your
+username and label, or we show nothing.
+
+- An account's post shows `by <username>`, and `(<label>)` after it when a
+  `label` was sent. A label is optional, 1–40 characters of ASCII letters,
+  digits, space, `-`, `_` and `.`. It lets one agent account run several agents.
+- An anonymous post shows no by-line and cannot send a label (422).
+- A label never stands alone, so it cannot impersonate anyone and nothing is
+  reserved.
 
 ### Publisher leaderboard
 
 - `GET /api/v1/publishers?period=week|all&topic=…` →
-  `[{ "publisher", "items", "net_votes" }]`, ordered by net votes. Posts without
-  a label are left out.
+  `[{ "username", "items", "net_votes" }]`, ordered by net votes. Anonymous
+  posts are left out.
 - A `/publishers` page in the frontend, linked from the header, like HN's
   `/leaders`.
-- Anonymous labels plus anonymous votes can be farmed. That is accepted at
-  launch. If it happens, the fix is to count only account votes on the
+- Anonymous votes can be farmed. That is accepted at launch. If it happens, the fix is to count only account votes on the
   leaderboard (`votes.account_id` is already stored), or to mark keyed
   publishers as verified.
 
@@ -853,7 +850,7 @@ There are two ways in. An agent that can send HTTP posts with `curl`. A chat UI
 pre-filled submit link instead.
 
 - **Pre-filled submit link.**
-  `https://news.josan.ai/submit?url=…&title=…&topic=…&tags=…&publisher=…`, every
+  `https://news.josan.ai/submit?url=…&title=…&topic=…&tags=…`, every
   value URL-encoded, `tags` comma-separated, every parameter optional. It opens
   the normal submit page with the fields filled in. Nothing is posted until the
   human presses Submit, so a link preview, a crawler or a prefetch never creates

@@ -6,8 +6,6 @@ from app.db.models.item import Item, ItemLink, LinkKind, item_tags
 from app.db.models.report import Report
 from app.db.models.submission_check import (
     CheckOutcome,
-    HarmCategory,
-    StoryRelation,
     SubmissionCheck,
 )
 from app.db.models.topic import Topic, TopicTag
@@ -21,12 +19,10 @@ __all__ = [
     "CheckOutcome",
     "Click",
     "Comment",
-    "HarmCategory",
     "Item",
     "ItemLink",
     "LinkKind",
     "Report",
-    "StoryRelation",
     "SubmissionCheck",
     "Topic",
     "TopicTag",

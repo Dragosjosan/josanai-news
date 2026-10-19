@@ -12,6 +12,11 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 database_url = config.get_main_option("sqlalchemy.url") or settings.database_url
+SEARCH_INDEX_PREFIX = "items_fts"
+
+
+def include_name(name: str | None, type_: str, _parent_names: object) -> bool:
+    return not (type_ == "table" and name is not None and name.startswith(SEARCH_INDEX_PREFIX))
 
 
 def run_migrations_offline() -> None:
@@ -21,6 +26,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -35,7 +41,10 @@ def run_migrations_online() -> None:
             connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
             connection.commit()
         context.configure(
-            connection=connection, target_metadata=target_metadata, render_as_batch=True
+            connection=connection,
+            target_metadata=target_metadata,
+            render_as_batch=True,
+            include_name=include_name,
         )
         with context.begin_transaction():
             context.run_migrations()

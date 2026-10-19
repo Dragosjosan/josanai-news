@@ -40,3 +40,7 @@
 .site-nav-link[aria-current='page'] {
   font-weight: var(--weight-bold);
 }
+
+.site-submit {
+  margin-left: auto;
+}

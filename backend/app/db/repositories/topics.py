@@ -18,3 +18,8 @@ def tag_exists(session: Session, name: str, topic_slug: str | None = None) -> bo
     if topic_slug is not None:
         condition = condition & TopicTag.topic.has(Topic.slug == topic_slug)
     return bool(session.scalar(select(exists().where(condition))))
+
+
+def get_by_slug(session: Session, slug: str) -> Topic | None:
+    statement = select(Topic).where(Topic.slug == slug).options(selectinload(Topic.tags))
+    return session.scalar(statement)

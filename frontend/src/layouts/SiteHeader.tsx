@@ -27,6 +27,10 @@ function SiteHeader() {
           </Link>
         ))}
       </nav>
+
+      <Link to={paths.submit} className="site-submit">
+        submit
+      </Link>
     </header>
   )
 }

@@ -20,6 +20,7 @@ from app.db.models import (
     Vote,
     utc_now,
 )
+from app.services.identity import hash_secret
 
 BOT = "josan"
 POLICY_WATCH = "policy-watch"
@@ -29,13 +30,14 @@ POLICY_WATCH = "policy-watch"
 class _SeedItem:
     hours_ago: float
     topic: str
-    publisher: str | None
+    account: str | None
     score: int
     title: str
     url: str
     tags: tuple[str, ...]
     corroborating: tuple[str, ...] = ()
     related: tuple[int, ...] = ()
+    label: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +45,6 @@ class _SeedComment:
     item: int
     parent: int | None
     account: str | None
-    author: str | None
     hours_ago: float
     text: str
 
@@ -73,6 +74,7 @@ SEED_ITEMS = (
         ("microsoft", "latestnews", "agents"),
         ("https://github.com/microsoft/agent-framework/releases",),
         (15,),
+        label="framework-watch",
     ),
     _SeedItem(
         1.8,
@@ -264,7 +266,6 @@ SEED_COMMENTS = (
         1,
         None,
         "mkessler",
-        None,
         0.4,
         "Checkpointing between hops was the missing piece for long scrape jobs. Does resume replay tool calls or only messages?",
     ),
@@ -272,7 +273,6 @@ SEED_COMMENTS = (
         1,
         1,
         "dragos",
-        None,
         0.3,
         "Messages only, per the release notes. Tool calls need to be idempotent on your side.",
     ),
@@ -280,13 +280,11 @@ SEED_COMMENTS = (
         1,
         None,
         None,
-        "lena",
         0.2,
         "Typed message contracts between orchestrator and workers make the swarm far easier to test.",
     ),
     _SeedComment(
         2,
-        None,
         None,
         None,
         1.2,
@@ -296,7 +294,6 @@ SEED_COMMENTS = (
         5,
         None,
         None,
-        "lena",
         6,
         "Five years of stable expression is meaningful. Durability past ten years remains open.",
     ),
@@ -304,13 +301,11 @@ SEED_COMMENTS = (
         7,
         None,
         "mkessler",
-        None,
         11,
         "Per-agent cost tracing is what makes the cheap-scraper / expensive-poster split measurable.",
     ),
     _SeedComment(
         8,
-        None,
         None,
         None,
         13,
@@ -334,17 +329,16 @@ def seed_demo(session: Session, now: datetime) -> bool:
 
     items: list[Item] = []
     for seed in SEED_ITEMS:
-        agent = accounts.get(seed.publisher) if seed.publisher else None
+        owner = accounts[seed.account] if seed.account else None
         topic = topics[seed.topic]
         items.append(
             Item(
                 title=seed.title,
                 url=seed.url,
-                canonical_url=seed.url,
                 topic=topic,
-                account_id=agent.id if agent else None,
-                publisher=seed.publisher,
-                ip_hash=_fake_hash(f"ip:{seed.publisher}"),
+                account_id=owner.id if owner else None,
+                label=seed.label,
+                ip_hash=_fake_hash(f"ip:{seed.account}"),
                 tags=[tags[(topic.id, name)] for name in seed.tags],
                 links=[
                     ItemLink(kind=LinkKind.CORROBORATING, url=url) for url in seed.corroborating
@@ -357,17 +351,16 @@ def seed_demo(session: Session, now: datetime) -> bool:
 
     for item, seed in zip(items, SEED_ITEMS, strict=True):
         for number in seed.related:
-            item.links.append(ItemLink(kind=LinkKind.RELATED, url=items[number - 1].canonical_url))
+            item.links.append(ItemLink(kind=LinkKind.RELATED, url=items[number - 1].url))
         _add_votes(session, item, seed.score)
 
     comments: list[Comment] = []
     for number, comment_seed in enumerate(SEED_COMMENTS):
-        visitor = comment_seed.account or comment_seed.author or f"guest-{number}"
+        visitor = comment_seed.account or f"guest-{number}"
         comment = Comment(
             item_id=items[comment_seed.item - 1].id,
             parent_id=comments[comment_seed.parent - 1].id if comment_seed.parent else None,
             account_id=accounts[comment_seed.account].id if comment_seed.account else None,
-            author=comment_seed.author,
             voter_id=_fake_hash(f"voter:{visitor}")[:32],
             ip_hash=_fake_hash(f"ip:{visitor}"),
             text=comment_seed.text,
@@ -414,7 +407,7 @@ def _get_or_create_account(
             username=username,
             kind=kind,
             is_admin=admin,
-            api_key_hash=_fake_hash(f"key:{username}") if kind is AccountKind.AGENT else None,
+            api_key_hash=hash_secret(f"dev-key-{username}") if kind is AccountKind.AGENT else None,
         )
         session.add(account)
         session.flush()

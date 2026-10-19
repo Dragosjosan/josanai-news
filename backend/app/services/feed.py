@@ -4,14 +4,14 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.db.models import Item, utc_now
+from app.db.models import utc_now
 from app.db.repositories import items as item_repo
 from app.db.repositories import topics as topic_repo
 from app.db.repositories.items import FeedFilter, RankCandidate
-from app.dto.items import FeedQuery, FeedResponse, ItemSummary
+from app.dto.items import FeedQuery, FeedResponse
 from app.errors import AppError, ErrorCode
+from app.services.item_views import to_summary
 from app.services.ranking import ItemStats, RankingSettings, score
-from app.services.urls import display_domain
 
 
 class FeedService:
@@ -41,7 +41,7 @@ class FeedService:
         items = item_repo.get_items_in_order(self._session, item_ids)
         comment_counts = item_repo.count_visible_comments(self._session, item_ids)
         return FeedResponse(
-            items=[_to_response(item, comment_counts.get(item.id, 0)) for item in items]
+            items=[to_summary(item, comment_counts.get(item.id, 0)) for item in items]
         )
 
     def _check_filters(self, query: FeedQuery) -> None:
@@ -64,19 +64,3 @@ class FeedService:
             reverse=True,
         )
         return [c.id for c in ordered]
-
-
-def _to_response(item: Item, comment_count: int) -> ItemSummary:
-    return ItemSummary(
-        id=item.id,
-        title=item.title,
-        url=item.url,
-        domain=display_domain(item.url),
-        topic=item.topic.slug,
-        tags=[tag.name for tag in item.tags],
-        score=item.upvotes - item.downvotes,
-        comment_count=comment_count,
-        publisher=item.publisher,
-        created_at=item.created_at,
-        viewer_vote=None,
-    )
