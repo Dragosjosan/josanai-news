@@ -11,7 +11,12 @@ from app.db.models.item import (
     item_tags,
 )
 from app.db.models.rate_event import RateAction, RateEvent
-from app.db.models.submission_check import CheckOutcome, StoryRelation, SubmissionCheck
+from app.db.models.submission_check import (
+    CheckOutcome,
+    HarmCategory,
+    StoryRelation,
+    SubmissionCheck,
+)
 from app.db.models.topic import Topic, TopicTag
 from app.db.models.vote import Vote, VoteEvent
 
@@ -26,6 +31,7 @@ __all__ = [
     "Comment",
     "Flag",
     "FlagResolution",
+    "HarmCategory",
     "Item",
     "ItemCorroboratingUrl",
     "ItemImpressionDaily",

@@ -9,9 +9,20 @@ from app.db.models.base import Base, UtcDateTime, string_enum, utc_now
 
 class CheckOutcome(StrEnum):
     PUBLISHED = "published"
+    HARMFUL = "harmful"
     OFF_TOPIC = "off_topic"
     DUPLICATE = "duplicate"
     UNAVAILABLE = "unavailable"
+
+
+class HarmCategory(StrEnum):
+    NONE = "none"
+    HATE = "hate"
+    HARASSMENT = "harassment"
+    VIOLENCE = "violence"
+    SEXUAL = "sexual"
+    SELF_HARM = "self_harm"
+    SCAM = "scam"
 
 
 class StoryRelation(StrEnum):
@@ -30,6 +41,8 @@ class SubmissionCheck(Base):
     title: Mapped[str] = mapped_column(String(300))
     canonical_url: Mapped[str] = mapped_column(String(2048))
     outcome: Mapped[CheckOutcome] = mapped_column(string_enum(CheckOutcome))
+    harm_category: Mapped[HarmCategory | None] = mapped_column(string_enum(HarmCategory))
+    harm_probability: Mapped[float | None] = mapped_column(Float)
     on_topic_probability: Mapped[float | None] = mapped_column(Float)
     relation: Mapped[StoryRelation | None] = mapped_column(string_enum(StoryRelation))
     relation_probability: Mapped[float | None] = mapped_column(Float)
