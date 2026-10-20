@@ -6,7 +6,7 @@ from app.dto.items import ItemDetail, ItemRef, ItemSummary, Link
 from app.services.urls import display_domain
 
 
-def to_summary(item: Item, comment_count: int) -> ItemSummary:
+def to_summary(item: Item) -> ItemSummary:
     return ItemSummary(
         id=item.id,
         title=item.title,
@@ -15,7 +15,7 @@ def to_summary(item: Item, comment_count: int) -> ItemSummary:
         topic=item.topic.slug,
         tags=[tag.name for tag in item.tags],
         score=item.upvotes - item.downvotes,
-        comment_count=comment_count,
+        comment_count=0,
         username=item.account.username if item.account else None,
         label=item.label,
         created_at=item.created_at,
@@ -24,9 +24,8 @@ def to_summary(item: Item, comment_count: int) -> ItemSummary:
 
 
 def to_detail(session: Session, item: Item) -> ItemDetail:
-    comment_count = item_repo.count_visible_comments(session, [item.id]).get(item.id, 0)
     return ItemDetail(
-        **to_summary(item, comment_count).model_dump(),
+        **to_summary(item).model_dump(),
         source_name=item.source_name,
         published_at=item.published_at,
         summary=item.summary,

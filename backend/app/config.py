@@ -38,7 +38,6 @@ class Settings(BaseSettings):
     feed_size: int = Field(default=70, gt=0)
     rank_candidates: int = Field(default=500, gt=0)
     rank_gravity: float = Field(default=1.0, gt=0)
-    rank_click_w: float = Field(default=0.0, ge=0)
     rank_downvote_p: float = Field(default=0.8, gt=0, le=1)
 
     @field_validator("database_url", mode="after")

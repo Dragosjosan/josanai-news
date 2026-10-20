@@ -27,7 +27,6 @@ class FeedService:
         self._candidate_limit = settings.rank_candidates
         self._ranking = RankingSettings(
             gravity=settings.rank_gravity,
-            click_weight=settings.rank_click_w,
             downvote_penalty=settings.rank_downvote_p,
         )
 
@@ -39,10 +38,7 @@ class FeedService:
         )
         item_ids = self._rank(candidates)[: self._feed_size]
         items = item_repo.get_items_in_order(self._session, item_ids)
-        comment_counts = item_repo.count_visible_comments(self._session, item_ids)
-        return FeedResponse(
-            items=[to_summary(item, comment_counts.get(item.id, 0)) for item in items]
-        )
+        return FeedResponse(items=[to_summary(item) for item in items])
 
     def _check_filters(self, query: FeedQuery) -> None:
         if query.topic is not None and not topic_repo.topic_exists(self._session, query.topic):

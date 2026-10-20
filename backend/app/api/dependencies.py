@@ -13,7 +13,6 @@ from app.services.publishing import PublishingService
 from app.services.topics import TopicService
 
 API_KEY_HEADER = "X-API-Key"
-SESSION_COOKIE = "session"
 
 
 def get_session(request: Request) -> Iterator[Session]:
@@ -34,7 +33,6 @@ def get_credentials(request: Request, settings: AppSettings) -> Credentials:
     client_ip = request.client.host if request.client else "unknown"
     return Credentials(
         api_key=request.headers.get(API_KEY_HEADER),
-        session_token=request.cookies.get(SESSION_COOKIE),
         ip_hash=hash_ip(client_ip, settings.ip_hash_salt.get_secret_value()),
     )
 

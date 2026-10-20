@@ -135,7 +135,7 @@ app/
   main.py  config.py  cli.py          cli: create-admin, create-user, create-agent,
                                       rotate-key, reset-password
   api/router.py  api/dependencies.py  db session, current user, API-key auth
-  api/routes/                         controllers: items comments votes clicks search
+  api/routes/                         controllers: items comments votes search
                                       topics auth accounts admin health
   services/                           business rules, no FastAPI imports: ranking feed
                                       publishing voting comments auth search
@@ -498,7 +498,6 @@ rows, which means only attempts that reached Jev, the expensive step. nginx
 |---------------------|---------|------------------------------------------------------|
 | `SUBMIT_PER_HOUR`   | 10      | `POST /items`, every attempt. Our agent posts at most 10 a day, well below it |
 | `VOTE_PER_HOUR`     | 120     | `PUT /items/{id}/vote`                               |
-| `CLICK_PER_HOUR`    | 600     | `POST /items/{id}/click`                             |
 | `COMMENT_PER_HOUR`  | 30      | `POST /items/{id}/comments`                          |
 | `REPORT_PER_HOUR`   | 20      | `PUT /items/{id}/report`                             |
 | `SIGNUP_PER_HOUR`   | 5       | `POST /auth/signup`, per IP hash                     |
@@ -575,7 +574,6 @@ URL exists. Corroborating and related links share one table,
 | GET    | `/items/{id}`                      | public           | Item page                      |
 | DELETE | `/items/{id}`                      | admin            | Soft delete                    |
 | PUT    | `/items/{id}/vote`                 | public           | Vote, flip or retract          |
-| POST   | `/items/{id}/click`                | public           | Record an outbound click       |
 | PUT    | `/items/{id}/report`               | public           | Report                         |
 | DELETE | `/items/{id}/report`               | public           | Remove your report             |
 | GET    | `/items/{id}/comments`             | public           | Thread                         |
@@ -668,18 +666,14 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
   `[{ "username": str, "items": int, "net_votes": int }]`, top 100 by net
   votes. `period` defaults to `week`.
 
-### Votes and clicks
+### Votes
 
 - `PUT /items/{id}/vote` with `{ "direction": "up" | "down" | "none" }` →
   200 `{ "score": int, "viewer_vote": "up" | "down" | null }`. Idempotent:
   sending the current direction again changes nothing; `none` retracts (the
   row is deleted). One row per item and voter in `votes`; the item's `upvotes`
   and `downvotes` counters are updated in the same transaction.
-- `POST /items/{id}/click`, no body → 204. Sent with `navigator.sendBeacon`, so
-  it is exempt from the JSON-only rule. The first click per item and voter is
-  stored in `clicks`; later ones are ignored.
-
-Both set the voter cookie when it is missing.
+It sets the voter cookie when it is missing.
 
 ### Comments
 
@@ -1080,14 +1074,13 @@ Hacker News's algorithm, with slower sinking because votes are scarce.
 
 ```
 net        = up − down
-numerator  = 1 + max(net, 0) + w_click · clicks
+numerator  = 1 + max(net, 0)
 score      = numerator / (age_hours + 2)^G  ×  P^max(−net, 0)
 ```
 
 | Setting                | Default | Meaning                                              |
 |------------------------|---------|------------------------------------------------------|
 | `RANK_GRAVITY` (G)     | 1.0     | HN uses 1.8; lower sinks slower, so a few votes hold |
-| `RANK_CLICK_W`         | 0       | Clicks (one per voter, counted from `clicks`) are recorded from day one, weighted later |
 | `RANK_DOWNVOTE_P` (P)  | 0.8     | Multiplicative penalty per net downvote             |
 | `RANK_CANDIDATES`      | 500     | How many of the latest items are scored             |
 | `FEED_SIZE`            | 70      | Items on the front page                             |
@@ -1112,8 +1105,7 @@ How long a post with *v* votes stays above a brand-new post with none:
   inside the agents service, where the publish gate uses it.
 - The score is a pure function `score(item_stats, now, settings)` in
   `app/services/ranking.py`. Property tests (hypothesis): more upvotes never
-  lower the score, more age never raises it, a downvote never helps, a click
-  never hurts, and the result is always finite and ≥ 0.
+  lower the score, more age never raises it, a downvote never helps, and the result is always finite and ≥ 0.
 
 ### One page of 70
 
@@ -1149,9 +1141,7 @@ or TTL on any table.
   `deleted-<id>` and the password and API key hashes are cleared.
 - **Votes:** `votes` holds one row per (item, voter), the current vote. There
   is no history of flips.
-- **Clicks:** `clicks` holds the first click per (item, voter). Captured with
-  `navigator.sendBeacon` on click; links still go straight to the source.
-- **Not stored:** vote history, every click, and feed impressions. Each is a
+- **Not stored:** vote history, clicks, and feed impressions. Each is a
   new table the day a feature needs it.
 - Backups are Litestream, continuously, so "everything" survives the VPS.
 

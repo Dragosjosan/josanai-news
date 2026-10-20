@@ -4,6 +4,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: news-backend
+    env_file:
+      - path: ./backend/.env
+        required: false
     volumes:
       - news_data:/app/data
     healthcheck:

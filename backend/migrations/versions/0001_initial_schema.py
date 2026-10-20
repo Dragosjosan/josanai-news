@@ -65,16 +65,6 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f("ix_items_topic_id"), ["topic_id"], unique=False)
 
     op.create_table(
-        "sessions",
-        sa.Column("token_hash", sa.String(length=64), nullable=False),
-        sa.Column("account_id", sa.Integer(), nullable=False),
-        sa.Column("expires_at", sa.String(length=24), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["account_id"], ["accounts.id"], name=op.f("fk_sessions_account_id_accounts")
-        ),
-        sa.PrimaryKeyConstraint("token_hash", name=op.f("pk_sessions")),
-    )
-    op.create_table(
         "topic_tags",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("topic_id", sa.Integer(), nullable=False),
@@ -87,37 +77,6 @@ def upgrade() -> None:
     )
     with op.batch_alter_table("topic_tags", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_topic_tags_topic_id"), ["topic_id"], unique=False)
-
-    op.create_table(
-        "clicks",
-        sa.Column("item_id", sa.Integer(), nullable=False),
-        sa.Column("voter_id", sa.String(length=32), nullable=False),
-        sa.Column("created_at", sa.String(length=24), nullable=False),
-        sa.ForeignKeyConstraint(["item_id"], ["items.id"], name=op.f("fk_clicks_item_id_items")),
-        sa.PrimaryKeyConstraint("item_id", "voter_id", name=op.f("pk_clicks")),
-    )
-    op.create_table(
-        "comments",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("item_id", sa.Integer(), nullable=False),
-        sa.Column("parent_id", sa.Integer(), nullable=True),
-        sa.Column("account_id", sa.Integer(), nullable=True),
-        sa.Column("voter_id", sa.String(length=32), nullable=False),
-        sa.Column("ip_hash", sa.String(length=64), nullable=False),
-        sa.Column("text", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.String(length=24), nullable=False),
-        sa.Column("deleted_at", sa.String(length=24), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["account_id"], ["accounts.id"], name=op.f("fk_comments_account_id_accounts")
-        ),
-        sa.ForeignKeyConstraint(["item_id"], ["items.id"], name=op.f("fk_comments_item_id_items")),
-        sa.ForeignKeyConstraint(
-            ["parent_id"], ["comments.id"], name=op.f("fk_comments_parent_id_comments")
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_comments")),
-    )
-    with op.batch_alter_table("comments", schema=None) as batch_op:
-        batch_op.create_index(batch_op.f("ix_comments_item_id"), ["item_id"], unique=False)
 
     op.create_table(
         "item_links",
@@ -147,21 +106,6 @@ def upgrade() -> None:
             ["tag_id"], ["topic_tags.id"], name=op.f("fk_item_tags_tag_id_topic_tags")
         ),
         sa.PrimaryKeyConstraint("item_id", "tag_id", name=op.f("pk_item_tags")),
-    )
-    op.create_table(
-        "reports",
-        sa.Column("item_id", sa.Integer(), nullable=False),
-        sa.Column("voter_id", sa.String(length=32), nullable=False),
-        sa.Column("account_id", sa.Integer(), nullable=True),
-        sa.Column("ip_hash", sa.String(length=64), nullable=False),
-        sa.Column("reason", sa.String(length=200), nullable=True),
-        sa.Column("created_at", sa.String(length=24), nullable=False),
-        sa.Column("resolved_at", sa.String(length=24), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["account_id"], ["accounts.id"], name=op.f("fk_reports_account_id_accounts")
-        ),
-        sa.ForeignKeyConstraint(["item_id"], ["items.id"], name=op.f("fk_reports_item_id_items")),
-        sa.PrimaryKeyConstraint("item_id", "voter_id", name=op.f("pk_reports")),
     )
     op.create_table(
         "submission_checks",
@@ -215,22 +159,6 @@ def upgrade() -> None:
         batch_op.create_index(
             "ix_submission_checks_ip_hash_created_at", ["ip_hash", "created_at"], unique=False
         )
-
-    op.create_table(
-        "votes",
-        sa.Column("item_id", sa.Integer(), nullable=False),
-        sa.Column("voter_id", sa.String(length=32), nullable=False),
-        sa.Column("account_id", sa.Integer(), nullable=True),
-        sa.Column("ip_hash", sa.String(length=64), nullable=False),
-        sa.Column("direction", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.String(length=24), nullable=False),
-        sa.CheckConstraint("direction IN (-1, 1)", name=op.f("ck_votes_direction")),
-        sa.ForeignKeyConstraint(
-            ["account_id"], ["accounts.id"], name=op.f("fk_votes_account_id_accounts")
-        ),
-        sa.ForeignKeyConstraint(["item_id"], ["items.id"], name=op.f("fk_votes_item_id_items")),
-        sa.PrimaryKeyConstraint("item_id", "voter_id", name=op.f("pk_votes")),
-    )
 
     _create_search_index()
     _insert_launch_topics()
@@ -362,15 +290,10 @@ def downgrade() -> None:
         op.execute(f"DROP TRIGGER IF EXISTS {trigger}")
     op.execute("DROP TABLE IF EXISTS items_fts")
     for table in (
-        "votes",
         "submission_checks",
-        "reports",
         "item_tags",
         "item_links",
-        "comments",
-        "clicks",
         "topic_tags",
-        "sessions",
         "items",
         "topics",
         "accounts",

@@ -59,7 +59,7 @@ class PublishingService:
         return self._insert(request, identity, topic, tags, check)
 
     def _identity(self, credentials: Credentials) -> Identity:
-        identity = resolve_identity(self._session, credentials, self._clock())
+        identity = resolve_identity(self._session, credentials)
         if identity.account is None and self._settings.post_requires_account:
             raise AppError(
                 ErrorCode.NOT_AUTHENTICATED,

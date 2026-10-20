@@ -2,10 +2,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.db.models import Comment, Item, ItemLink, LinkKind, Topic, TopicTag
+from app.db.models import Item, ItemLink, LinkKind, Topic, TopicTag
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,17 +54,6 @@ def get_items_in_order(session: Session, ids: Sequence[int]) -> list[Item]:
     )
     by_id = {item.id: item for item in session.scalars(statement)}
     return [by_id[item_id] for item_id in ids if item_id in by_id]
-
-
-def count_visible_comments(session: Session, item_ids: Sequence[int]) -> dict[int, int]:
-    if not item_ids:
-        return {}
-    statement = (
-        select(Comment.item_id, func.count())
-        .where(Comment.item_id.in_(item_ids), Comment.deleted_at.is_(None))
-        .group_by(Comment.item_id)
-    )
-    return {item_id: count for item_id, count in session.execute(statement)}
 
 
 def get_by_url(session: Session, url: str) -> Item | None:

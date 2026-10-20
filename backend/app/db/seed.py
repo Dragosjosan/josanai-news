@@ -10,14 +10,11 @@ from app.db.connection import build_engine, build_session_factory, session_scope
 from app.db.models import (
     Account,
     AccountKind,
-    Comment,
     Item,
     ItemLink,
     LinkKind,
-    Report,
     Topic,
     TopicTag,
-    Vote,
     utc_now,
 )
 from app.services.identity import hash_secret
@@ -40,25 +37,8 @@ class _SeedItem:
     label: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class _SeedComment:
-    item: int
-    parent: int | None
-    account: str | None
-    hours_ago: float
-    text: str
-
-
-@dataclass(frozen=True, slots=True)
-class _SeedReport:
-    item: int
-    reason: str | None
-
-
 ACCOUNTS = (
     ("dragos", AccountKind.USER, True),
-    ("mkessler", AccountKind.USER, False),
-    ("lena_r", AccountKind.USER, False),
     (BOT, AccountKind.AGENT, False),
     (POLICY_WATCH, AccountKind.AGENT, False),
 )
@@ -261,60 +241,6 @@ SEED_ITEMS = (
     ),
 )
 
-SEED_COMMENTS = (
-    _SeedComment(
-        1,
-        None,
-        "mkessler",
-        0.4,
-        "Checkpointing between hops was the missing piece for long scrape jobs. Does resume replay tool calls or only messages?",
-    ),
-    _SeedComment(
-        1,
-        1,
-        "dragos",
-        0.3,
-        "Messages only, per the release notes. Tool calls need to be idempotent on your side.",
-    ),
-    _SeedComment(
-        1,
-        None,
-        None,
-        0.2,
-        "Typed message contracts between orchestrator and workers make the swarm far easier to test.",
-    ),
-    _SeedComment(
-        2,
-        None,
-        None,
-        1.2,
-        "Trough levels in the under-6 cohort are the number to watch. The full table is in the supplementary appendix.",
-    ),
-    _SeedComment(
-        5,
-        None,
-        None,
-        6,
-        "Five years of stable expression is meaningful. Durability past ten years remains open.",
-    ),
-    _SeedComment(
-        7,
-        None,
-        "mkessler",
-        11,
-        "Per-agent cost tracing is what makes the cheap-scraper / expensive-poster split measurable.",
-    ),
-    _SeedComment(
-        8,
-        None,
-        None,
-        13,
-        "Committee vote expected next week. Briefing documents are already public.",
-    ),
-)
-
-SEED_REPORTS = (_SeedReport(20, "Opinion piece, not news."),)
-
 
 def seed_demo(session: Session, now: datetime) -> bool:
     if session.scalar(select(func.count()).select_from(Item)):
@@ -338,6 +264,7 @@ def seed_demo(session: Session, now: datetime) -> bool:
                 topic=topic,
                 account_id=owner.id if owner else None,
                 label=seed.label,
+                upvotes=seed.score,
                 ip_hash=_fake_hash(f"ip:{seed.account}"),
                 tags=[tags[(topic.id, name)] for name in seed.tags],
                 links=[
@@ -352,50 +279,8 @@ def seed_demo(session: Session, now: datetime) -> bool:
     for item, seed in zip(items, SEED_ITEMS, strict=True):
         for number in seed.related:
             item.links.append(ItemLink(kind=LinkKind.RELATED, url=items[number - 1].url))
-        _add_votes(session, item, seed.score)
 
-    comments: list[Comment] = []
-    for number, comment_seed in enumerate(SEED_COMMENTS):
-        visitor = comment_seed.account or f"guest-{number}"
-        comment = Comment(
-            item_id=items[comment_seed.item - 1].id,
-            parent_id=comments[comment_seed.parent - 1].id if comment_seed.parent else None,
-            account_id=accounts[comment_seed.account].id if comment_seed.account else None,
-            voter_id=_fake_hash(f"voter:{visitor}")[:32],
-            ip_hash=_fake_hash(f"ip:{visitor}"),
-            text=comment_seed.text,
-            created_at=now - timedelta(hours=comment_seed.hours_ago),
-        )
-        session.add(comment)
-        session.flush()
-        comments.append(comment)
-
-    for number, report_seed in enumerate(SEED_REPORTS):
-        session.add(
-            Report(
-                item_id=items[report_seed.item - 1].id,
-                voter_id=_fake_hash(f"voter:reporter-{number}")[:32],
-                ip_hash=_fake_hash(f"ip:reporter-{number}"),
-                reason=report_seed.reason,
-                created_at=now,
-            )
-        )
     return True
-
-
-def _add_votes(session: Session, item: Item, count: int) -> None:
-    for number in range(count):
-        voter_id = _fake_hash(f"voter:{item.id}:{number}")[:32]
-        session.add(
-            Vote(
-                item_id=item.id,
-                voter_id=voter_id,
-                ip_hash=_fake_hash(f"ip:{voter_id}"),
-                direction=1,
-                created_at=item.created_at + timedelta(minutes=number + 1),
-            )
-        )
-    item.upvotes = count
 
 
 def _get_or_create_account(
