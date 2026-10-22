@@ -21,7 +21,7 @@ from app.dto.validation import (
     clean_line,
 )
 
-VoteDirection = Literal["up", "down"]
+VoteDirection = Literal["up"]
 
 MAX_FUTURE = timedelta(hours=24)
 
@@ -102,3 +102,12 @@ class ItemDetail(ItemSummary):
 
 class FeedResponse(BaseModel):
     items: list[ItemSummary]
+
+
+class VoteRequest(RequestModel):
+    direction: Literal["up", "none"]
+
+
+class VoteResponse(BaseModel):
+    score: int
+    viewer_vote: VoteDirection | None

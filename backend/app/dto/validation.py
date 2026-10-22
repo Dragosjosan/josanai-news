@@ -78,6 +78,10 @@ def check_url(value: str) -> str:
         raise ValueError("must be an http or https URL")
     if not parts.hostname:
         raise ValueError("must have a host")
+    try:
+        parts.hostname.encode("idna")
+    except UnicodeError as error:
+        raise ValueError("must have a valid host") from error
     if "@" in parts.netloc:
         raise ValueError("must not contain credentials")
     return value

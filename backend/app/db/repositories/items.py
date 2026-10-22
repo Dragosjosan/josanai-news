@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.db.models import Item, ItemLink, LinkKind, Topic, TopicTag
@@ -18,7 +18,6 @@ class FeedFilter:
 class RankCandidate:
     id: int
     upvotes: int
-    downvotes: int
     created_at: datetime
 
 
@@ -37,7 +36,7 @@ def list_rank_candidates(
     session: Session, feed_filter: FeedFilter, limit: int
 ) -> list[RankCandidate]:
     statement = (
-        _visible(select(Item.id, Item.upvotes, Item.downvotes, Item.created_at), feed_filter)
+        _visible(select(Item.id, Item.upvotes, Item.created_at), feed_filter)
         .order_by(Item.created_at.desc(), Item.id.desc())
         .limit(limit)
     )
@@ -72,6 +71,14 @@ def get_visible(session: Session, item_id: int) -> Item | None:
         )
     )
     return session.scalar(statement)
+
+
+def get_visible_upvotes(session: Session, item_id: int) -> int | None:
+    return session.scalar(select(Item.upvotes).where(Item.id == item_id, Item.deleted_at.is_(None)))
+
+
+def add_upvotes(session: Session, item_id: int, delta: int) -> None:
+    session.execute(update(Item).where(Item.id == item_id).values(upvotes=Item.upvotes + delta))
 
 
 def list_earlier(session: Session, item: Item) -> list[Item]:

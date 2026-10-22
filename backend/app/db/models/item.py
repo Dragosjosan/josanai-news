@@ -37,7 +37,6 @@ class Item(Base):
     summary: Mapped[str | None] = mapped_column(Text)
     primary_ref: Mapped[str | None] = mapped_column(String(200))
     upvotes: Mapped[int] = mapped_column(default=0)
-    downvotes: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utc_now)
     deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 

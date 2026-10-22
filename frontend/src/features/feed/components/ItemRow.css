@@ -12,23 +12,6 @@
   text-align: right;
 }
 
-.item-vote {
-  all: unset;
-  font-size: var(--hn-vote-size);
-  line-height: 20px;
-  text-align: center;
-  color: var(--muted-2);
-  cursor: pointer;
-}
-
-.item-vote:hover:not(:disabled) {
-  color: var(--accent);
-}
-
-.item-vote:disabled {
-  cursor: default;
-}
-
 .item-body {
   min-width: 0;
 }
@@ -52,6 +35,15 @@
 .item-domain {
   color: var(--muted);
   font-size: var(--hn-text-site);
+}
+
+.item-comments {
+  color: inherit;
+  text-decoration: none;
+}
+
+.item-comments:hover {
+  text-decoration: underline;
 }
 
 .item-meta {

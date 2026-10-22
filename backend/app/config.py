@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     ip_hash_salt: SecretStr = SecretStr("dev-salt")
     submit_per_hour: int = Field(default=10, gt=0)
+    vote_per_hour: int = Field(default=120, gt=0)
 
     jev_api_key: SecretStr | None = None
     jev_base_url: str = "https://api.typesafe.ai"
@@ -38,7 +39,6 @@ class Settings(BaseSettings):
     feed_size: int = Field(default=70, gt=0)
     rank_candidates: int = Field(default=500, gt=0)
     rank_gravity: float = Field(default=1.0, gt=0)
-    rank_downvote_p: float = Field(default=0.8, gt=0, le=1)
 
     @field_validator("database_url", mode="after")
     @classmethod

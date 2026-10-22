@@ -50,7 +50,6 @@ def upgrade() -> None:
         sa.Column("summary", sa.Text(), nullable=True),
         sa.Column("primary_ref", sa.String(length=200), nullable=True),
         sa.Column("upvotes", sa.Integer(), nullable=False),
-        sa.Column("downvotes", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.String(length=24), nullable=False),
         sa.Column("deleted_at", sa.String(length=24), nullable=True),
         sa.ForeignKeyConstraint(
@@ -107,6 +106,20 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("item_id", "tag_id", name=op.f("pk_item_tags")),
     )
+    op.create_table(
+        "votes",
+        sa.Column("item_id", sa.Integer(), nullable=False),
+        sa.Column("ip_hash", sa.String(length=64), nullable=False),
+        sa.Column("account_id", sa.Integer(), nullable=True),
+        sa.Column("created_at", sa.String(length=24), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["account_id"], ["accounts.id"], name=op.f("fk_votes_account_id_accounts")
+        ),
+        sa.ForeignKeyConstraint(["item_id"], ["items.id"], name=op.f("fk_votes_item_id_items")),
+        sa.PrimaryKeyConstraint("item_id", "ip_hash", name=op.f("pk_votes")),
+    )
+    with op.batch_alter_table("votes", schema=None) as batch_op:
+        batch_op.create_index("ix_votes_ip_hash_created_at", ["ip_hash", "created_at"], unique=False)
     op.create_table(
         "submission_checks",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -291,6 +304,7 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS items_fts")
     for table in (
         "submission_checks",
+        "votes",
         "item_tags",
         "item_links",
         "topic_tags",

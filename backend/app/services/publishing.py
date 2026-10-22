@@ -219,7 +219,7 @@ class PublishingService:
         self._session.commit()
         created = item_repo.get_visible(self._session, item.id)
         assert created is not None
-        return to_detail(self._session, created)
+        return to_detail(self._session, created, voted=False)
 
 
 def _links(request: SubmitItemRequest) -> list[ItemLink]:

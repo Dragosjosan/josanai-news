@@ -1,0 +1,22 @@
+.vote-arrow {
+  all: unset;
+  font-size: var(--hn-vote-size);
+  line-height: 20px;
+  text-align: center;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+
+.vote-arrow:hover,
+.vote-arrow[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.vote-arrow:disabled {
+  cursor: progress;
+}
+
+.vote-arrow:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}

@@ -7,6 +7,7 @@ from app.config import Settings
 from app.db.models import utc_now
 from app.db.repositories import items as item_repo
 from app.db.repositories import topics as topic_repo
+from app.db.repositories import votes as vote_repo
 from app.db.repositories.items import FeedFilter, RankCandidate
 from app.dto.items import FeedQuery, FeedResponse
 from app.errors import AppError, ErrorCode
@@ -25,12 +26,9 @@ class FeedService:
         self._clock = clock
         self._feed_size = settings.feed_size
         self._candidate_limit = settings.rank_candidates
-        self._ranking = RankingSettings(
-            gravity=settings.rank_gravity,
-            downvote_penalty=settings.rank_downvote_p,
-        )
+        self._ranking = RankingSettings(gravity=settings.rank_gravity)
 
-    def get_front_page(self, query: FeedQuery) -> FeedResponse:
+    def get_front_page(self, query: FeedQuery, ip_hash: str) -> FeedResponse:
         self._check_filters(query)
         feed_filter = FeedFilter(query.topic, query.tag)
         candidates = item_repo.list_rank_candidates(
@@ -38,7 +36,8 @@ class FeedService:
         )
         item_ids = self._rank(candidates)[: self._feed_size]
         items = item_repo.get_items_in_order(self._session, item_ids)
-        return FeedResponse(items=[to_summary(item) for item in items])
+        voted = vote_repo.voted_item_ids(self._session, ip_hash, item_ids)
+        return FeedResponse(items=[to_summary(item, item.id in voted) for item in items])
 
     def _check_filters(self, query: FeedQuery) -> None:
         if query.topic is not None and not topic_repo.topic_exists(self._session, query.topic):
@@ -53,7 +52,7 @@ class FeedService:
         ordered = sorted(
             candidates,
             key=lambda c: (
-                score(ItemStats(c.upvotes, c.downvotes, c.created_at), now, self._ranking),
+                score(ItemStats(c.upvotes, c.created_at), now, self._ranking),
                 c.created_at,
                 c.id,
             ),

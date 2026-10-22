@@ -9,8 +9,10 @@ from app.config import Settings
 from app.db.connection import SessionFactory
 from app.services.feed import FeedService
 from app.services.identity import Credentials, hash_ip
+from app.services.items import ItemService
 from app.services.publishing import PublishingService
 from app.services.topics import TopicService
+from app.services.voting import VotingService
 
 API_KEY_HEADER = "X-API-Key"
 
@@ -45,6 +47,14 @@ def get_topic_service(session: DatabaseSession) -> TopicService:
     return TopicService(session)
 
 
+def get_item_service(session: DatabaseSession) -> ItemService:
+    return ItemService(session)
+
+
+def get_voting_service(session: DatabaseSession, settings: AppSettings) -> VotingService:
+    return VotingService(session, settings)
+
+
 def get_publishing_service(
     request: Request, session: DatabaseSession, settings: AppSettings
 ) -> PublishingService:
@@ -59,3 +69,5 @@ RequestCredentials = Annotated[Credentials, Depends(get_credentials)]
 FeedServiceDep = Annotated[FeedService, Depends(get_feed_service)]
 TopicServiceDep = Annotated[TopicService, Depends(get_topic_service)]
 PublishingServiceDep = Annotated[PublishingService, Depends(get_publishing_service)]
+ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
+VotingServiceDep = Annotated[VotingService, Depends(get_voting_service)]

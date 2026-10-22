@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -25,7 +26,19 @@ def hash_secret(secret: str) -> str:
 
 
 def hash_ip(ip: str, salt: str) -> str:
-    return hashlib.sha256(f"{salt}:{ip}".encode()).hexdigest()
+    return hashlib.sha256(f"{salt}:{_visitor_network(ip)}".encode()).hexdigest()
+
+
+def _visitor_network(ip: str) -> str:
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped is not None:
+            return str(address.ipv4_mapped)
+        return str(ipaddress.IPv6Network((address, 64), strict=False).network_address)
+    return str(address)
 
 
 def resolve_identity(session: Session, credentials: Credentials) -> Identity:

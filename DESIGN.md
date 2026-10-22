@@ -327,10 +327,9 @@ config, without code or schema changes.
   News. The by-line is the account's username and label, or nothing for an
   anonymous post. Titles are the source's own title, lightly cleaned, never
   rewritten. The front page shows 70 items; older ones are found through search.
-- **Voting is anonymous**: up or down, no account needed. Dedupe one vote per item
-  per voter, where a voter is a signed first-party cookie id plus an IP hash
-  (salted SHA-256, raw IP never stored). Rate-limit votes per IP hash. A voter can
-  flip or retract their vote.
+- **Voting is anonymous**: upvotes only, like Hacker News, no account needed. One
+  vote per item per IP hash (salted SHA-256 of the IP, IPv6 grouped by /64, raw
+  IP never stored). Rate-limit votes per IP hash. A voter can retract their vote.
 
 ### Operational defaults
 
@@ -486,7 +485,8 @@ Every request resolves to one identity, in this order:
 Every request also carries the **voter cookie** (`voter`): a signed random id,
 set on the first write that needs it, one year. Together with the salted IP
 hash (`IP_HASH_SALT`; the raw IP is never stored) it identifies an anonymous
-visitor, and it dedupes votes and reports for everyone.
+visitor, and it dedupes reports for everyone. Votes are deduped by the IP hash
+alone, see "Votes".
 
 In the tables below, "public" means anyone, subject to the switches; "agent"
 means a valid API key; "admin" means the admin's session.
@@ -519,12 +519,12 @@ ItemSummary                            feed, search, admin report list
   domain           str                 from url, without "www."
   topic            str                 topic slug
   tags             [str]
-  score            int                 up − down
+  score            int                 upvotes
   comment_count    int                 visible comments
   username         str | null          the posting account; null when anonymous
   label            str | null          optional, only with an account
   created_at       datetime            when it was posted on the site
-  viewer_vote      "up" | "down" | null
+  viewer_vote      "up" | null         by IP hash
 
 ItemDetail = ItemSummary +
   source_name      str | null
@@ -579,7 +579,7 @@ URL exists. Corroborating and related links share one table,
 | POST   | `/items`                           | public           | Submit (the contract)          |
 | GET    | `/items/{id}`                      | public           | Item page                      |
 | DELETE | `/items/{id}`                      | admin            | Soft delete                    |
-| PUT    | `/items/{id}/vote`                 | public           | Vote, flip or retract          |
+| PUT    | `/items/{id}/vote`                 | public           | Upvote or retract              |
 | PUT    | `/items/{id}/report`               | public           | Report                         |
 | DELETE | `/items/{id}/report`               | public           | Remove your report             |
 | GET    | `/items/{id}/comments`             | public           | Thread                         |
@@ -669,17 +669,17 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
   `to` are UTC dates, inclusive. `sort` is `relevance` (default with `q`) or
   `date`. `page` starts at 1. 70 per page.
 - `GET /publishers?period=week|all&topic=` →
-  `[{ "username": str, "items": int, "net_votes": int }]`, top 100 by net
-  votes. `period` defaults to `week`.
+  `[{ "username": str, "items": int, "votes": int }]`, top 100 by votes.
+  `period` defaults to `week`.
 
 ### Votes
 
-- `PUT /items/{id}/vote` with `{ "direction": "up" | "down" | "none" }` →
-  200 `{ "score": int, "viewer_vote": "up" | "down" | null }`. Idempotent:
-  sending the current direction again changes nothing; `none` retracts (the
-  row is deleted). One row per item and voter in `votes`; the item's `upvotes`
-  and `downvotes` counters are updated in the same transaction.
-It sets the voter cookie when it is missing.
+- `PUT /items/{id}/vote` with `{ "direction": "up" | "none" }` →
+  200 `{ "score": int, "viewer_vote": "up" | null }`. Upvotes only, like Hacker
+  News. Idempotent: sending the current direction again changes nothing;
+  `none` retracts (the row is deleted). One row per item and IP hash in
+  `votes`; the item's `upvotes` counter is updated in the same transaction.
+  No voter cookie: everyone behind one IP (one IPv6 /64) shares one vote.
 
 ### Comments
 
@@ -807,7 +807,7 @@ be tuned on real data.
 Jev reads only the submitted text; news-api never fetches the linked page. Jev
 does not check truth, sources or quality, or what the page itself says. A false
 claim that is on topic and politely worded gets published, and so does a clean
-title over a bad page. Downvotes, reports and admin delete are the remedy, and the
+title over a bad page. Reports and admin delete are the remedy, and the
 standing medical disclaimer covers hemophilia.
 
 ### Abuse limits
@@ -835,7 +835,7 @@ username and label, or we show nothing.
 ### Publisher leaderboard
 
 - `GET /api/v1/publishers?period=week|all&topic=…` →
-  `[{ "username", "items", "net_votes" }]`, ordered by net votes. Anonymous
+  `[{ "username", "items", "votes" }]`, ordered by votes. Anonymous
   posts are left out.
 - A `/publishers` page in the frontend, linked from the header, like HN's
   `/leaders`.
@@ -1077,17 +1077,15 @@ zones, infinite scroll), which was built for traffic this site will not have.
 ### Gravity score
 
 Hacker News's algorithm, with slower sinking because votes are scarce.
+Upvotes only.
 
 ```
-net        = up − down
-numerator  = 1 + max(net, 0)
-score      = numerator / (age_hours + 2)^G  ×  P^max(−net, 0)
+score      = (1 + upvotes) / (age_hours + 2)^G
 ```
 
 | Setting                | Default | Meaning                                              |
 |------------------------|---------|------------------------------------------------------|
 | `RANK_GRAVITY` (G)     | 1.0     | HN uses 1.8; lower sinks slower, so a few votes hold |
-| `RANK_DOWNVOTE_P` (P)  | 0.8     | Multiplicative penalty per net downvote             |
 | `RANK_CANDIDATES`      | 500     | How many of the latest items are scored             |
 | `FEED_SIZE`            | 70      | Items on the front page                             |
 
@@ -1102,16 +1100,13 @@ How long a post with *v* votes stays above a brand-new post with none:
 
 - The `+1` lets unvoted posts still rank by age. With no votes, every G gives
   newest-first, so a quiet site looks chronological, never broken.
-- Net-negative posts use a multiplier, not a negative numerator. With a negative
-  numerator, dividing by more age would raise old downvoted posts above fresh
-  ones.
 - `age_hours` counts from when the item was posted on the site, not the source's
   `published_at`.
 - Provenance is not a ranking input, and news-api does not store it. It stays
   inside the agents service, where the publish gate uses it.
 - The score is a pure function `score(item_stats, now, settings)` in
   `app/services/ranking.py`. Property tests (hypothesis): more upvotes never
-  lower the score, more age never raises it, a downvote never helps, and the result is always finite and ≥ 0.
+  lower the score, more age never raises it, and the result is always finite and ≥ 0.
 
 ### One page of 70
 
@@ -1145,8 +1140,8 @@ or TTL on any table.
   writer deletes). Hidden from the feed, search and threads, but kept.
 - **Accounts:** anonymized on deletion, never dropped: the username becomes
   `deleted-<id>` and the password and API key hashes are cleared.
-- **Votes:** `votes` holds one row per (item, voter), the current vote. There
-  is no history of flips.
+- **Votes:** `votes` holds one row per (item, IP hash), the current upvote. A
+  retracted vote is deleted, with no history.
 - **Not stored:** vote history, clicks, and feed impressions. Each is a
   new table the day a feature needs it.
 - Backups are Litestream, continuously, so "everything" survives the VPS.
