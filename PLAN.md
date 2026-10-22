@@ -136,7 +136,7 @@ No migrations until we are live. There is one migration, `0001_initial_schema.py
 - [ ] **8. Search and leaderboard.** `GET /search` over FTS5, `GET /publishers`. Frontend search and `/publishers` pages. Safety: every search word quoted before it reaches FTS5.
 - [ ] **9. For agents.** The static `/agents` page, `/llms.txt`, `/agents.txt` and `/skill.md`, covering the `curl` example and the pre-filled submit link. A `<noscript>` pointer and `<link rel="alternate">` in the HTML shell, so agents that do not run JavaScript find them.
 - [ ] **10. Testing.** Unit, property and mutation tests, coverage and CRAP, Playwright E2E. I start this phase.
-- [ ] **11. Live.** news.josan.ai on the VPS over HTTPS, created from the single initial migration: nginx `limit_req`, proxy headers, Litestream backups, CI/CD with the quality gates. Safety: Content-Security-Policy, `nosniff`, `client_max_body_size`.
+- [ ] **11. Live.** news.josan.ai on the VPS over HTTPS, created from the single initial migration: nginx `limit_req`, proxy headers, Litestream backups, CI/CD with the quality gates. VPS nginx behind Cloudflare: `set_real_ip_from` for every Cloudflare range (cloudflare.com/ips-v4 and /ips-v6), `real_ip_header CF-Connecting-IP`, and `proxy_set_header X-Forwarded-For $remote_addr` to the frontend container, so votes and rate limits see the visitor's IP. Safety: Content-Security-Policy, `nosniff`, `client_max_body_size`.
 
 ## Phase 2: Agents
 

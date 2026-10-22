@@ -335,8 +335,14 @@ config, without code or schema changes.
 ### Operational defaults
 
 - **Client IP behind nginx:** uvicorn runs with `--proxy-headers` and
-  `--forwarded-allow-ips` set to the nginx address, so vote dedup sees real IPs.
-  nginx applies `limit_req` on `/api`.
+  `--forwarded-allow-ips` set to the private ranges (the Docker networks and the
+  VPS nginx), so it takes the last public address in `X-Forwarded-For` and vote
+  dedup and rate limits see real IPs. Addresses a client prepends are ignored.
+  The backend publishes no port, so only the frontend nginx can reach it.
+  The chain is Cloudflare → VPS nginx → frontend nginx → backend. The VPS nginx
+  takes the visitor's IP from `CF-Connecting-IP`, trusted only from Cloudflare's
+  ranges (`set_real_ip_from`, `real_ip_header`), and sends it on as
+  `X-Forwarded-For: $remote_addr`. The VPS nginx applies `limit_req` on `/api`.
 - **Daily cap:** none in news-api. Our agent limits itself to 5 per topic per
   UTC day inside the agents service (see "Agent Pipeline"). Every other
   publisher is limited only by the per-IP rate limit.
