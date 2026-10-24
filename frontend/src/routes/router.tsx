@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router'
 import AppLayout from '../layouts/AppLayout.tsx'
+import LoginPage from '../features/auth/LoginPage.tsx'
 import FeedPage from '../features/feed/FeedPage.tsx'
 import ItemPage from '../features/item/ItemPage.tsx'
 import NotFoundPage from '../features/not-found/NotFoundPage.tsx'
@@ -13,6 +14,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <FeedPage /> },
       { path: paths.submit, element: <SubmitPage /> },
+      { path: paths.login, element: <LoginPage /> },
       { path: paths.item, element: <ItemPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

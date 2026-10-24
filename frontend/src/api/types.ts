@@ -66,6 +66,19 @@ export type SubmitItemBody = {
   tags: string[]
 }
 
+export type Account = {
+  id: number
+  username: string
+  kind: 'user' | 'agent'
+  is_admin: boolean
+  created_at: string
+}
+
+export type LoginBody = {
+  username: string
+  password: string
+}
+
 export type ErrorBody = {
   error: {
     code: string

@@ -41,6 +41,9 @@
   font-weight: var(--weight-bold);
 }
 
-.site-submit {
+.site-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin-left: auto;
 }

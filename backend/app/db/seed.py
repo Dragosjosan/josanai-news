@@ -17,7 +17,7 @@ from app.db.models import (
     TopicTag,
     utc_now,
 )
-from app.services.identity import hash_secret
+from app.services.identity import hash_password, hash_secret
 
 BOT = "josan"
 POLICY_WATCH = "policy-watch"
@@ -292,6 +292,9 @@ def _get_or_create_account(
             username=username,
             kind=kind,
             is_admin=admin,
+            password_hash=hash_password(f"dev-password-{username}")
+            if kind is AccountKind.USER
+            else None,
             api_key_hash=hash_secret(f"dev-key-{username}") if kind is AccountKind.AGENT else None,
         )
         session.add(account)

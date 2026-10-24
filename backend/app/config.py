@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     ip_hash_salt: SecretStr = SecretStr("dev-salt")
     submit_per_hour: int = Field(default=10, gt=0)
     vote_per_hour: int = Field(default=120, gt=0)
+    cookie_secure: bool = True
 
     jev_api_key: SecretStr | None = None
     jev_base_url: str = "https://api.typesafe.ai"

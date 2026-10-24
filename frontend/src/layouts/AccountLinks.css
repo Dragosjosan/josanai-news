@@ -1,0 +1,14 @@
+.account-logout {
+  all: unset;
+  cursor: pointer;
+}
+
+.account-logout:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.account-logout:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
+}

@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -11,8 +11,7 @@ from app.db.repositories import votes as vote_repo
 from app.dto.items import VoteRequest, VoteResponse
 from app.errors import AppError, ErrorCode
 from app.services.identity import Credentials, resolve_identity
-
-RATE_WINDOW = timedelta(hours=1)
+from app.services.rate_limits import RATE_WINDOW, check_rate
 
 
 class VotingService:
@@ -63,10 +62,4 @@ class VotingService:
     def _check_rate(self, ip_hash: str) -> None:
         now = self._clock()
         count, oldest = vote_repo.recent_votes(self._session, ip_hash, now - RATE_WINDOW)
-        if count >= self._settings.vote_per_hour and oldest is not None:
-            retry_after = max(int((oldest + RATE_WINDOW - now).total_seconds()) + 1, 1)
-            raise AppError(
-                ErrorCode.RATE_LIMITED,
-                f"Too many votes. Try again in {retry_after} seconds.",
-                retry_after=retry_after,
-            )
+        check_rate(count, oldest, self._settings.vote_per_hour, now, "votes")

@@ -61,7 +61,7 @@ export async function getJson<T>(
   return (await response.json()) as T
 }
 
-export function postJson<T>(path: string, body: unknown): Promise<T> {
+export function postJson<T>(path: string, body?: unknown): Promise<T> {
   return sendJson<T>('POST', path, body)
 }
 
@@ -74,10 +74,11 @@ async function sendJson<T>(method: 'POST' | 'PUT', path: string, body: unknown):
     method,
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
     throw await toApiError(response)
   }
+  if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }

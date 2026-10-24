@@ -7,7 +7,7 @@ from app.api.errors import register_error_handlers
 from app.api.middleware.body_limit import BodyLimitMiddleware
 from app.api.middleware.json_only import JsonOnlyMiddleware
 from app.api.router import api_router
-from app.api.routes import health
+from app.api.routes import auth, health
 from app.clients.jev import JevClient
 from app.config import Settings, settings
 from app.db.connection import build_engine, build_session_factory, prepare_database_directory
@@ -41,6 +41,8 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     app.add_middleware(BodyLimitMiddleware, max_bytes=config.max_body_bytes)
     app.include_router(health.router)
     app.include_router(api_router, prefix=config.api_prefix)
+    if config.accounts_enabled:
+        app.include_router(auth.signup_router, prefix=config.api_prefix)
     return app
 
 

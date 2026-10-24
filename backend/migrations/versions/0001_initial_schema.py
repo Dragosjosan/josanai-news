@@ -28,6 +28,18 @@ def upgrade() -> None:
         sa.UniqueConstraint("username", name=op.f("uq_accounts_username")),
     )
     op.create_table(
+        "sessions",
+        sa.Column("token_hash", sa.String(length=64), nullable=False),
+        sa.Column("account_id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.String(length=24), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["account_id"], ["accounts.id"], name=op.f("fk_sessions_account_id_accounts")
+        ),
+        sa.PrimaryKeyConstraint("token_hash", name=op.f("pk_sessions")),
+    )
+    with op.batch_alter_table("sessions", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_sessions_account_id"), ["account_id"], unique=False)
+    op.create_table(
         "topics",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("slug", sa.String(length=32), nullable=False),
@@ -310,6 +322,7 @@ def downgrade() -> None:
         "topic_tags",
         "items",
         "topics",
+        "sessions",
         "accounts",
     ):
         op.drop_table(table)

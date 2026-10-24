@@ -25,10 +25,10 @@ from app.errors import AppError, ErrorCode
 from app.services.identity import Credentials, Identity, resolve_identity
 from app.services.item_views import to_detail
 from app.services.moderation import Submission, TopicOption, Verdict, judge
+from app.services.rate_limits import RATE_WINDOW, check_rate
 from app.services.urls import display_domain
 
 CONTRACT_VERSION = "1"
-RATE_WINDOW = timedelta(hours=1)
 
 
 class PublishingService:
@@ -63,7 +63,7 @@ class PublishingService:
         if identity.account is None and self._settings.post_requires_account:
             raise AppError(
                 ErrorCode.NOT_AUTHENTICATED,
-                "This site requires an account to post. Send an X-API-Key header.",
+                "This site requires an account to post. Log in or send an X-API-Key header.",
             )
         return identity
 
@@ -73,13 +73,7 @@ class PublishingService:
         count, oldest = check_repo.recent_attempts(
             self._session, account_id, identity.ip_hash, now - RATE_WINDOW
         )
-        if count >= self._settings.submit_per_hour and oldest is not None:
-            retry_after = max(int((oldest + RATE_WINDOW - now).total_seconds()) + 1, 1)
-            raise AppError(
-                ErrorCode.RATE_LIMITED,
-                f"Too many submissions. Try again in {retry_after} seconds.",
-                retry_after=retry_after,
-            )
+        check_rate(count, oldest, self._settings.submit_per_hour, now, "submissions")
 
     def _topic_and_tags(self, request: SubmitItemRequest) -> tuple[Topic, list[TopicTag]]:
         topic = topic_repo.get_by_slug(self._session, request.topic)

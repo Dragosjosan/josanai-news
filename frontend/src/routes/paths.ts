@@ -3,6 +3,7 @@ import type { FeedFilters } from '../api/types.ts'
 export const paths = {
   home: '/',
   submit: '/submit',
+  login: '/login',
   item: '/item/:id',
 } as const
 

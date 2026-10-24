@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.clients.jev import JevClient
 from app.config import Settings
 from app.db.connection import SessionFactory
+from app.services.auth import AuthService
 from app.services.feed import FeedService
 from app.services.identity import Credentials, hash_ip
 from app.services.items import ItemService
@@ -15,6 +16,7 @@ from app.services.topics import TopicService
 from app.services.voting import VotingService
 
 API_KEY_HEADER = "X-API-Key"
+SESSION_COOKIE = "session"
 
 
 def get_session(request: Request) -> Iterator[Session]:
@@ -35,6 +37,7 @@ def get_credentials(request: Request, settings: AppSettings) -> Credentials:
     client_ip = request.client.host if request.client else "unknown"
     return Credentials(
         api_key=request.headers.get(API_KEY_HEADER),
+        session_token=request.cookies.get(SESSION_COOKIE),
         ip_hash=hash_ip(client_ip, settings.ip_hash_salt.get_secret_value()),
     )
 
@@ -55,6 +58,10 @@ def get_voting_service(session: DatabaseSession, settings: AppSettings) -> Votin
     return VotingService(session, settings)
 
 
+def get_auth_service(session: DatabaseSession) -> AuthService:
+    return AuthService(session)
+
+
 def get_publishing_service(
     request: Request, session: DatabaseSession, settings: AppSettings
 ) -> PublishingService:
@@ -71,3 +78,4 @@ TopicServiceDep = Annotated[TopicService, Depends(get_topic_service)]
 PublishingServiceDep = Annotated[PublishingService, Depends(get_publishing_service)]
 ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 VotingServiceDep = Annotated[VotingService, Depends(get_voting_service)]
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

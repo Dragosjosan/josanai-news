@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router'
 import { useTopics } from '../app/topicsContext.ts'
 import { feedUrl, paths } from '../routes/paths.ts'
+import AccountLinks from './AccountLinks.tsx'
 import './SiteHeader.css'
 
 function SiteHeader() {
@@ -28,9 +29,11 @@ function SiteHeader() {
         ))}
       </nav>
 
-      <Link to={paths.submit} className="site-submit">
-        submit
-      </Link>
+      <div className="site-actions">
+        <Link to={paths.submit}>submit</Link>
+        <span aria-hidden="true">|</span>
+        <AccountLinks />
+      </div>
     </header>
   )
 }
