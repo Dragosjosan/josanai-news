@@ -1,8 +1,11 @@
 .vote-arrow {
   all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--vote-line-height, calc(var(--hn-text-title) * 1.45));
   font-size: var(--hn-vote-size);
-  line-height: 20px;
-  text-align: center;
+  line-height: 1;
   color: var(--muted-2);
   cursor: pointer;
 }
