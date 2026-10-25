@@ -64,4 +64,6 @@
   color: var(--ink-soft);
   font-size: 13px;
   text-wrap: pretty;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

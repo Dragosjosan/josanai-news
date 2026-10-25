@@ -38,6 +38,17 @@ function ItemRow({ item, rank }: ItemRowProps) {
           <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>
             {timeAgo(item.created_at)}
           </time>
+          {item.summary && (
+            <>
+              <span aria-hidden="true">|</span>
+              <Link
+                className="item-comments"
+                to={`${itemUrl(item.id)}#summary`}
+              >
+                summary
+              </Link>
+            </>
+          )}
           <span aria-hidden="true">|</span>
           <Link className="item-comments" to={itemUrl(item.id)}>
             {item.comment_count === 0 ? 'discuss' : pluralize(item.comment_count, 'comment')}

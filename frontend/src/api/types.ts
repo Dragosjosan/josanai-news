@@ -5,6 +5,7 @@ export type FeedItem = {
   title: string
   url: string
   domain: string
+  summary: string | null
   score: number
   comment_count: number
   username: string | null
@@ -28,7 +29,6 @@ export type ItemRef = {
 export type ItemDetail = FeedItem & {
   source_name: string | null
   published_at: string | null
-  summary: string | null
   primary_ref: string | null
   corroborating: SourceLink[]
   earlier: ItemRef[]
@@ -59,6 +59,7 @@ export type SearchResult = {
 export type SubmitItemBody = {
   url: string
   title: string
+  summary?: string | null
 }
 
 export type Account = {

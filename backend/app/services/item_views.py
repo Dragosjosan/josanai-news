@@ -12,6 +12,7 @@ def to_summary(item: Item, voted: bool) -> ItemSummary:
         title=item.title,
         url=item.url,
         domain=display_domain(item.url),
+        summary=item.summary,
         score=item.upvotes,
         comment_count=0,
         username=item.account.username if item.account else None,
@@ -26,7 +27,6 @@ def to_detail(session: Session, item: Item, voted: bool) -> ItemDetail:
         **to_summary(item, voted).model_dump(),
         source_name=item.source_name,
         published_at=item.published_at,
-        summary=item.summary,
         primary_ref=item.primary_ref,
         corroborating=[
             Link(url=link.url, domain=display_domain(link.url))

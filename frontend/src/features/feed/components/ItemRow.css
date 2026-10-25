@@ -46,6 +46,16 @@
   text-decoration: underline;
 }
 
+.item-summary {
+  max-width: 640px;
+  margin: var(--space-2) 0;
+  color: var(--ink-soft);
+  font-size: var(--hn-text-page);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .item-meta {
   display: flex;
   flex-wrap: wrap;

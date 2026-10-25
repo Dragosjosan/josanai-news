@@ -1,4 +1,7 @@
+import { useLocation } from 'react-router'
 import type { ItemDetail } from '../../../api/types.ts'
+import DisclosureToggle from '../../../components/Disclosure/DisclosureToggle.tsx'
+import { useDisclosure } from '../../../components/Disclosure/useDisclosure.ts'
 import ExternalLink from '../../../components/ExternalLink/ExternalLink.tsx'
 import VoteArrow from '../../../components/VoteArrow/VoteArrow.tsx'
 import { useVote } from '../../../components/VoteArrow/useVote.ts'
@@ -9,6 +12,8 @@ import './ItemArticle.css'
 
 function ItemArticle({ item }: { item: ItemDetail }) {
   const vote = useVote(item)
+  const { hash } = useLocation()
+  const summary = useDisclosure(hash === '#summary')
 
   return (
     <article className="item-article">
@@ -33,11 +38,27 @@ function ItemArticle({ item }: { item: ItemDetail }) {
           <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>
             {timeAgo(item.created_at)}
           </time>
+          {item.summary && (
+            <>
+              <span className="item-article-separator" aria-hidden="true">|</span>
+              <DisclosureToggle
+                label="summary"
+                expandedLabel="hide summary"
+                expanded={summary.expanded}
+                contentId={summary.contentId}
+                onToggle={summary.toggle}
+              />
+            </>
+          )}
           <span className="item-article-separator" aria-hidden="true">|</span>
           <span>{item.comment_count === 0 ? 'discuss' : pluralize(item.comment_count, 'comment')}</span>
         </div>
 
-        {item.summary && <p className="item-article-summary">{item.summary}</p>}
+        {item.summary && (
+          <p className="item-article-summary" id={summary.contentId} hidden={!summary.expanded}>
+            {item.summary}
+          </p>
+        )}
 
         {item.corroborating.length > 0 && (
           <LinkSection title="Verified against">

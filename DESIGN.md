@@ -235,6 +235,16 @@ from the **Claude Design export**. `josanai-design` is a submodule at
 `frontend/src/design` and provides the tokens and elements the export builds on.
 API types are generated from the FastAPI code.
 
+**Article summaries.** Every item can have an optional plain-text summary of at
+most 500 characters, supplied by its publisher. The feed, new, past and search
+show a `summary` button beside `discuss` only when a summary exists. It uses the
+same muted text treatment as the discussion link, starts collapsed, and expands
+the summary below that story; the label becomes `hide summary`. Titles still
+link directly to the source. The item/discussion page uses the same collapsed
+toggle in its metadata, expanding the summary before supporting links and
+comments. The submit page has an optional textarea below the title, with a
+character counter.
+
 **news-api**: FastAPI, mirroring the level8 backend:
 `app/api/routes` (controllers) → `app/services` → `app/db/repositories` +
 `app/db/models`, `app/dto` for Pydantic schemas, `app/config.py` with
@@ -513,6 +523,7 @@ ItemSummary                            feed, search, admin report list
   title            str
   url              str
   domain           str                 from url, without "www."
+  summary          str | null          optional, at most 500 characters
   score            int                 upvotes
   comment_count    int                 visible comments
   username         str | null          the posting account; null when anonymous
@@ -523,7 +534,6 @@ ItemSummary                            feed, search, admin report list
 ItemDetail = ItemSummary +
   source_name      str | null
   published_at     datetime | null     the source's own date
-  summary          str | null
   primary_ref      str | null
   corroborating    [Link]
   earlier          [ItemRef]           stories this item updates (Connections)
@@ -609,12 +619,16 @@ POST /api/v1/items      X-API-Key: <key>   (optional; omit to post anonymously)
   # optional, always sent by our agent:
   "source_name":        str | null,     1–200
   "published_at":       datetime | null, at most 24 h in the future
-  "summary":            str | null,     1–2000, asserts nothing the source does not
+  "summary":            str | null,     1–500, asserts nothing the source does not
   "primary_ref":        str | null,     1–200: NCT id, DOI, FDA/EMA docket, arXiv id
   "corroborating_urls": [str],          0–10
   "related_urls":       [str]           0–10, connections to earlier coverage
 }
 ```
+
+An omitted, null, empty or whitespace-only `summary` means no summary. The
+500-character limit applies after the shared text normalization. Longer values
+are rejected with 422 `validation_error`, without truncation.
 
 **URL.** The duplicate check compares `url` exactly, with no rewriting. The
 same article under a different URL (tracking parameters, `www.`) is left to
@@ -836,7 +850,7 @@ There are two ways in. An agent that can send HTTP posts with `curl`. A chat UI
 pre-filled submit link instead.
 
 - **Pre-filled submit link.**
-  `https://news.josan.ai/submit?url=…&title=…`, every value URL-encoded, every
+  `https://news.josan.ai/submit?url=…&title=…&summary=…`, every value URL-encoded, every
   parameter optional. It opens
   the normal submit page with the fields filled in. Nothing is posted until the
   human presses Submit, so a link preview, a crawler or a prefetch never creates

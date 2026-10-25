@@ -31,6 +31,7 @@ class _SeedItem:
     corroborating: tuple[str, ...] = ()
     related: tuple[int, ...] = ()
     label: str | None = None
+    summary: str | None = None
 
 
 ACCOUNTS = (
@@ -49,6 +50,7 @@ SEED_ITEMS = (
         ("https://github.com/microsoft/agent-framework/releases",),
         (15,),
         label="framework-watch",
+        summary="Durable workflows let agents resume work after interruptions and coordinate multi-agent tasks.",
     ),
     _SeedItem(
         1.8,
@@ -65,6 +67,7 @@ SEED_ITEMS = (
         38,
         "Open-weight 32B model reaches frontier scores on SWE-bench Verified",
         "https://arxiv.org/abs/2610.01234",
+        summary="A 32-billion-parameter open-weight model reports coding results on SWE-bench Verified comparable to frontier models.",
     ),
     _SeedItem(
         5.1,
@@ -214,6 +217,7 @@ def seed_demo(session: Session, now: datetime) -> bool:
                 url=seed.url,
                 account_id=owner.id if owner else None,
                 label=seed.label,
+                summary=seed.summary,
                 upvotes=seed.score,
                 ip_hash=_fake_hash(f"ip:{seed.account}"),
                 links=[

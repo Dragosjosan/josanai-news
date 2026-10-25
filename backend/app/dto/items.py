@@ -6,6 +6,7 @@ from pydantic import (
     AwareDatetime,
     BaseModel,
     Field,
+    field_validator,
 )
 
 from app.dto.validation import (
@@ -55,12 +56,20 @@ class SubmitItemRequest(RequestModel):
     corroborating_urls: list[WebUrl] = Field(default_factory=list, max_length=10)
     related_urls: list[WebUrl] = Field(default_factory=list, max_length=10)
 
+    @field_validator("summary", mode="before")
+    @classmethod
+    def empty_summary_is_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
 
 class ItemSummary(BaseModel):
     id: int
     title: str
     url: str
     domain: str
+    summary: str | None
     score: int
     comment_count: int
     username: str | None
@@ -84,7 +93,6 @@ class ItemRef(BaseModel):
 class ItemDetail(ItemSummary):
     source_name: str | None
     published_at: datetime | None
-    summary: str | None
     primary_ref: str | None
     corroborating: list[Link]
     earlier: list[ItemRef]
