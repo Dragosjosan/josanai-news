@@ -86,7 +86,7 @@ class PublishingService:
     def _reject_known_url(self, url: str) -> None:
         existing = item_repo.get_by_url(self._session, url)
         if existing is not None:
-            raise _duplicate(None if existing.deleted_at else existing.id, "same_url")
+            raise _duplicate(existing, "same_url")
 
     def _judge(self, request: SubmitItemRequest, identity: Identity) -> SubmissionCheck:
         settings = self._settings
@@ -137,7 +137,9 @@ class PublishingService:
         ):
             check.outcome = CheckOutcome.DUPLICATE
             self._save_rejection(check)
-            raise _duplicate(verdict.duplicate_of_id, "same_story")
+            raise _duplicate(
+                item_repo.get_visible(self._session, verdict.duplicate_of_id), "same_story"
+            )
 
     def _save_rejection(self, check: SubmissionCheck) -> None:
         self._session.add(check)
@@ -169,8 +171,9 @@ class PublishingService:
         except IntegrityError as error:
             self._session.rollback()
             existing = item_repo.get_by_url(self._session, request.url)
-            item_id = existing.id if existing and not existing.deleted_at else None
-            raise _duplicate(item_id, "same_url") from error
+            if existing is None:
+                raise
+            raise _duplicate(existing, "same_url") from error
         check.item_id = item.id
         self._session.commit()
         created = item_repo.get_visible(self._session, item.id)
@@ -194,9 +197,15 @@ def _record(check: SubmissionCheck, verdict: Verdict) -> None:
     check.duplicate_probability = verdict.duplicate_probability
 
 
-def _duplicate(item_id: int | None, reason: str) -> AppError:
+def _duplicate(existing: Item | None, reason: str) -> AppError:
+    visible = existing if existing is not None and existing.deleted_at is None else None
     return AppError(
         ErrorCode.DUPLICATE,
         "This story is already on the site.",
-        {"item_id": item_id, "reason": reason},
+        {
+            "item_id": visible.id if visible else None,
+            "title": visible.title if visible else None,
+            "url": visible.url if visible else None,
+            "reason": reason,
+        },
     )

@@ -635,9 +635,12 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 
 ```
 201  ItemDetail, with Location: /api/v1/items/{id}
-409  duplicate     details: { "item_id": int | null, "reason": "same_url" | "same_story" }
-                   item_id is null when the match was deleted: a deleted item
-                   keeps its URL, and that URL cannot be posted again.
+409  duplicate     details: { "item_id": int | null, "title": str | null,
+                              "url": str | null, "reason": "same_url" | "same_story" }
+                   The existing story, so the submitter can go to it; the submit
+                   page links to it. All three are null when the match was
+                   deleted: a deleted item keeps its URL, and that URL cannot be
+                   posted again.
 422  see the order of checks
 429  rate_limited
 503  jev_unavailable

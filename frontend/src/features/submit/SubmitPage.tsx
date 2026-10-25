@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import type { SubmitItemBody } from '../../api/types.ts'
-import { paths } from '../../routes/paths.ts'
+import { itemUrl, paths } from '../../routes/paths.ts'
 import { useSubmit } from './useSubmit.ts'
 import './SubmitPage.css'
 
@@ -44,6 +44,12 @@ function SubmitPage() {
         <div className="alert alert-danger" role="alert">
           <div className="alert-content">
             <p>{state.message}</p>
+            {state.existing && (
+              <p>
+                <Link to={itemUrl(state.existing.id)}>{state.existing.title}</Link>
+                <span className="submit-existing-url"> {state.existing.url}</span>
+              </p>
+            )}
             {state.problems.map((problem) => (
               <p key={problem}>{problem}</p>
             ))}

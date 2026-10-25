@@ -2,3 +2,8 @@
   max-width: 40rem;
   padding: var(--space-3) 0;
 }
+
+.submit-existing-url {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
