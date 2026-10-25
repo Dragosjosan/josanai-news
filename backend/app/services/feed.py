@@ -1,16 +1,14 @@
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db.models import utc_now
 from app.db.repositories import items as item_repo
-from app.db.repositories import topics as topic_repo
 from app.db.repositories import votes as vote_repo
-from app.db.repositories.items import FeedFilter, RankCandidate
+from app.db.repositories.items import RankCandidate
 from app.dto.items import FeedQuery, FeedResponse
-from app.errors import AppError, ErrorCode
 from app.services.item_views import to_summary
 from app.services.ranking import ItemStats, RankingSettings, score
 
@@ -28,24 +26,26 @@ class FeedService:
         self._candidate_limit = settings.rank_candidates
         self._ranking = RankingSettings(gravity=settings.rank_gravity)
 
-    def get_front_page(self, query: FeedQuery, ip_hash: str) -> FeedResponse:
-        self._check_filters(query)
-        feed_filter = FeedFilter(query.topic, query.tag)
-        candidates = item_repo.list_rank_candidates(
-            self._session, feed_filter, self._candidate_limit
-        )
-        item_ids = self._rank(candidates)[: self._feed_size]
+    def get_feed(self, query: FeedQuery, ip_hash: str) -> FeedResponse:
+        item_ids = self._item_ids(query)
         items = item_repo.get_items_in_order(self._session, item_ids)
         voted = vote_repo.voted_item_ids(self._session, ip_hash, item_ids)
         return FeedResponse(items=[to_summary(item, item.id in voted) for item in items])
 
-    def _check_filters(self, query: FeedQuery) -> None:
-        if query.topic is not None and not topic_repo.topic_exists(self._session, query.topic):
-            raise AppError(ErrorCode.UNKNOWN_TOPIC, f"Unknown topic '{query.topic}'.")
-        if query.tag is not None and not topic_repo.tag_exists(
-            self._session, query.tag, query.topic
-        ):
-            raise AppError(ErrorCode.UNKNOWN_TAG, f"Unknown tag '{query.tag}'.")
+    def _item_ids(self, query: FeedQuery) -> list[int]:
+        if query.day is not None:
+            start = datetime.combine(query.day, time(), tzinfo=UTC)
+            return item_repo.list_day_ids(
+                self._session,
+                start,
+                start + timedelta(days=1),
+                by_votes=query.sort == "top",
+                limit=self._feed_size,
+            )
+        if query.sort == "new":
+            return item_repo.list_newest_ids(self._session, self._feed_size)
+        candidates = item_repo.list_rank_candidates(self._session, self._candidate_limit)
+        return self._rank(candidates)[: self._feed_size]
 
     def _rank(self, candidates: list[RankCandidate]) -> list[int]:
         now = self._clock()

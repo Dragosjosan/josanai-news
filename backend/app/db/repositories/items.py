@@ -2,16 +2,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Select, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.db.models import Item, ItemLink, LinkKind, Topic, TopicTag
-
-
-@dataclass(frozen=True, slots=True)
-class FeedFilter:
-    topic: str | None = None
-    tag: str | None = None
+from app.db.models import Item, ItemLink, LinkKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,36 +15,58 @@ class RankCandidate:
     created_at: datetime
 
 
-def _visible[*Ts](statement: Select[*Ts], feed_filter: FeedFilter) -> Select[*Ts]:
-    statement = statement.where(Item.deleted_at.is_(None))
-    if feed_filter.topic is not None:
-        statement = statement.join(Topic, Item.topic_id == Topic.id).where(
-            Topic.slug == feed_filter.topic
-        )
-    if feed_filter.tag is not None:
-        statement = statement.where(Item.tags.any(TopicTag.name == feed_filter.tag))
-    return statement
+@dataclass(frozen=True, slots=True)
+class SearchRow:
+    id: int
+    title: str
+    url: str
+    created_at: datetime
 
 
-def list_rank_candidates(
-    session: Session, feed_filter: FeedFilter, limit: int
-) -> list[RankCandidate]:
+def list_rank_candidates(session: Session, limit: int) -> list[RankCandidate]:
     statement = (
-        _visible(select(Item.id, Item.upvotes, Item.created_at), feed_filter)
+        select(Item.id, Item.upvotes, Item.created_at)
+        .where(Item.deleted_at.is_(None))
         .order_by(Item.created_at.desc(), Item.id.desc())
         .limit(limit)
     )
     return [RankCandidate(*row) for row in session.execute(statement)]
 
 
+def list_newest_ids(session: Session, limit: int) -> list[int]:
+    statement = (
+        select(Item.id)
+        .where(Item.deleted_at.is_(None))
+        .order_by(Item.created_at.desc(), Item.id.desc())
+        .limit(limit)
+    )
+    return list(session.scalars(statement))
+
+
+def list_day_ids(
+    session: Session, start: datetime, end: datetime, by_votes: bool, limit: int
+) -> list[int]:
+    order = (Item.upvotes.desc(),) if by_votes else ()
+    statement = (
+        select(Item.id)
+        .where(Item.deleted_at.is_(None), Item.created_at >= start, Item.created_at < end)
+        .order_by(*order, Item.created_at.desc(), Item.id.desc())
+        .limit(limit)
+    )
+    return list(session.scalars(statement))
+
+
+def list_search_rows(session: Session) -> list[SearchRow]:
+    statement = select(Item.id, Item.title, Item.url, Item.created_at).where(
+        Item.deleted_at.is_(None)
+    )
+    return [SearchRow(*row) for row in session.execute(statement)]
+
+
 def get_items_in_order(session: Session, ids: Sequence[int]) -> list[Item]:
     if not ids:
         return []
-    statement = (
-        select(Item)
-        .where(Item.id.in_(ids))
-        .options(joinedload(Item.topic), joinedload(Item.account), selectinload(Item.tags))
-    )
+    statement = select(Item).where(Item.id.in_(ids)).options(joinedload(Item.account))
     by_id = {item.id: item for item in session.scalars(statement)}
     return [by_id[item_id] for item_id in ids if item_id in by_id]
 
@@ -63,12 +79,7 @@ def get_visible(session: Session, item_id: int) -> Item | None:
     statement = (
         select(Item)
         .where(Item.id == item_id, Item.deleted_at.is_(None))
-        .options(
-            joinedload(Item.topic),
-            joinedload(Item.account),
-            selectinload(Item.tags),
-            selectinload(Item.links),
-        )
+        .options(joinedload(Item.account), selectinload(Item.links))
     )
     return session.scalar(statement)
 

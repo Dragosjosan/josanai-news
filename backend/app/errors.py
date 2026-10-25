@@ -15,9 +15,6 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"
     VALIDATION_ERROR = "validation_error"
     UNSUPPORTED_CONTRACT_VERSION = "unsupported_contract_version"
-    UNKNOWN_TOPIC = "unknown_topic"
-    UNKNOWN_TAG = "unknown_tag"
-    OFF_TOPIC = "off_topic"
     HARMFUL_CONTENT = "harmful_content"
     PARENT_NOT_FOUND = "parent_not_found"
     RATE_LIMITED = "rate_limited"
@@ -39,9 +36,6 @@ STATUS_BY_CODE: dict[ErrorCode, int] = {
     ErrorCode.UNSUPPORTED_MEDIA_TYPE: 415,
     ErrorCode.VALIDATION_ERROR: 422,
     ErrorCode.UNSUPPORTED_CONTRACT_VERSION: 422,
-    ErrorCode.UNKNOWN_TOPIC: 422,
-    ErrorCode.UNKNOWN_TAG: 422,
-    ErrorCode.OFF_TOPIC: 422,
     ErrorCode.HARMFUL_CONTENT: 422,
     ErrorCode.PARENT_NOT_FOUND: 422,
     ErrorCode.RATE_LIMITED: 429,

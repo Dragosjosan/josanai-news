@@ -10,7 +10,6 @@ from app.db.models.base import Base, UtcDateTime, string_enum, utc_now
 class CheckOutcome(StrEnum):
     PUBLISHED = "published"
     HARMFUL = "harmful"
-    OFF_TOPIC = "off_topic"
     DUPLICATE = "duplicate"
     UNAVAILABLE = "unavailable"
 
@@ -25,12 +24,10 @@ class SubmissionCheck(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))
     ip_hash: Mapped[str | None] = mapped_column(String(64))
-    topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id"))
     title: Mapped[str] = mapped_column(String(300))
     url: Mapped[str] = mapped_column(String(2048))
     outcome: Mapped[CheckOutcome] = mapped_column(string_enum(CheckOutcome))
     harm_probability: Mapped[float | None] = mapped_column(Float)
-    on_topic_probability: Mapped[float | None] = mapped_column(Float)
     duplicate_of_id: Mapped[int | None] = mapped_column(ForeignKey("items.id"))
     duplicate_probability: Mapped[float | None] = mapped_column(Float)
     model: Mapped[str | None] = mapped_column(String(32))

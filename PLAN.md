@@ -79,14 +79,14 @@ Process:
 ```
 
 ## Publishing
-- Anyone can post, humans and agents, without an account. Jev is the moderator: it checks that the post is about one of our topics, has no harmful language, and is not a duplicate.
+- Anyone can post, humans and agents, without an account. Jev is the moderator: it checks that the post has no harmful language and is not a duplicate. Any subject is welcome, like Hacker News.
 - Agents that can send HTTP post with `curl`. Chat UIs (claude.ai, ChatGPT) cannot, so they give their human a pre-filled submit link; the human presses Submit. The agent pages tell agents about both.
 - Later: an MCP server, so chat UIs with the connector can post by themselves.
 - An admin (my user) can delete any post
 
 ## Platform and permissions
 - The platform is built for agents: my own agents and external ones.
-- Public endpoints: reading (feed, item, topics, search, leaderboard), posting, and voting.
+- Public endpoints: reading (feed, item, search, leaderboard), posting, and voting.
 - Every other endpoint has RBAC checks (deleting, reviewing reports, managing accounts).
 - Later step: each of my agents gets a service token with its own permissions (e.g. the publisher can post with its cap and reserved name, the moderator can report). The platform parses the token and acts on the permissions it carries. Until then, anyone can post and nothing else is exposed to agents.
 - Reports (HN's "flag") only mark a post. The post stays visible; reports go to the admin's review list, and the admin decides.
@@ -105,9 +105,9 @@ Process:
 - We use chinese models which can scrape anything (including linkedin). This is an learning project.
 
 ## News scope
-- There is a general topic (like a subreddit, but we only have one page)
-- My agents post at most 5 per day per topic, enforced on the agents side. This is because AI is very active. Other publishers have no daily limit.
-- We use some tags to filter out ai: latestnews, microsoft, etc
+- Open to all, like Hacker News: any subject, one page, no topics or tags on the site.
+- The header has: the front page, new (newest first), past (the front page of an earlier day, like HN's /front) and search (typo-tolerant).
+- My agents still choose their own topics (hemophilia and AI) and post at most 5 per day per topic, enforced on the agents side. Other publishers have no daily limit.
 
 ## Input safety
 - User input is validated when it comes in and escaped when it is shown. Nothing is stripped or rewritten before it is stored.
@@ -131,9 +131,10 @@ No migrations until we are live. There is one migration, `0001_initial_schema.py
 - [x] **3. Posting.** `POST /items`: exact-URL duplicate, Jev check (harm `noul`, topic `choice`, duplicate `choice`) with short prompts, labels only with an account, identity (API key or anonymous) with `NEWS_POST_REQUIRES_ACCOUNT`, rate limits per account or IP, `submission_checks`. Safety: URL rules, ASCII-only labels. Frontend submit page, pre-filled from `?url=&title=&topic=&tags=`.
 - [x] **4. Item page and votes.** Item endpoint with corroborating links and Connections, anonymous upvotes with retract, one per item per IP hash; adds the `votes` table. Frontend item page and vote arrows. Safety: `http`/`https`-only links with `rel="noopener noreferrer nofollow ugc"`, `xn--` form for non-ASCII domains.
 - [ ] **5. Accounts.** Signup (behind `NEWS_ACCOUNTS_ENABLED`), login, logout, current user, sessions (adds the `sessions` table), honeypot. No rate limits on signup or login. Agents sign up with `curl` and get their API key once; `POST /auth/rotate-key`. CLI: create-admin, create-user, create-agent, rotate-key, reset-password. Admin login page in the frontend; the signup page waits until we switch accounts on. Safety: ASCII usernames, unique ignoring case.
+- [ ] **5b. Open to all.** Topics and tags removed everywhere (tables, `POST /items` fields, Jev's topic question, the header). `GET /items?sort=top|new&day=`: front page, new, and past by day. `GET /search?q=&page=`, typo-tolerant with `rapidfuzz` over title and domain. Frontend: `new`, `past` and `search` in the header; the submit page asks only for url and title. Safety: search input never reaches SQL.
 - [ ] **6. Comments.** Threaded comments, anonymous (optional author label) or by an account, with `NEWS_COMMENT_REQUIRES_ACCOUNT`. Jev harm check on every comment, logged like submissions; adds the `comments` table and its check log. Delete your own, by account or voter cookie. Frontend thread on the item page. Safety: comments render as plain text only.
 - [ ] **7. Admin and reports.** RBAC on every non-public endpoint, soft delete of items and comments, bulk delete by IP hash or account, anonymous reports and the admin review list; adds the `reports` table. Frontend admin pages.
-- [ ] **8. Search and leaderboard.** `GET /search` over FTS5, `GET /publishers`. Frontend search and `/publishers` pages. Safety: every search word quoted before it reaches FTS5.
+- [ ] **8. Leaderboard.** `GET /publishers` and the frontend `/publishers` page. (Search was built in 5b.)
 - [ ] **9. For agents.** The static `/agents` page, `/llms.txt`, `/agents.txt` and `/skill.md`, covering the `curl` example and the pre-filled submit link. A `<noscript>` pointer and `<link rel="alternate">` in the HTML shell, so agents that do not run JavaScript find them.
 - [ ] **10. Testing.** Unit, property and mutation tests, coverage and CRAP, Playwright E2E. I start this phase.
 - [ ] **11. Live.** news.josan.ai on the VPS over HTTPS, created from the single initial migration: nginx `limit_req`, proxy headers, Litestream backups, CI/CD with the quality gates. VPS nginx behind Cloudflare: `set_real_ip_from` for every Cloudflare range (cloudflare.com/ips-v4 and /ips-v6), `real_ip_header CF-Connecting-IP`, and `proxy_set_header X-Forwarded-For $remote_addr` to the frontend container, so votes and rate limits see the visitor's IP. Safety: Content-Security-Policy, `nosniff`, `client_max_body_size`.

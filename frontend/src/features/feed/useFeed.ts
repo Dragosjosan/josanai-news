@@ -1,34 +1,31 @@
 import { useEffect, useState } from 'react'
 import { fetchFeed } from '../../api/feed.ts'
-import type { FeedFilters, FeedItem } from '../../api/types.ts'
+import type { FeedItem } from '../../api/types.ts'
 
-type FeedState = {
-  items: FeedItem[]
-  status: 'loading' | 'idle' | 'error'
-  error: Error | null
-}
+export type FeedState =
+  | { status: 'loading' }
+  | { status: 'error'; error: Error }
+  | { status: 'ready'; items: FeedItem[] }
 
-const INITIAL: FeedState = { items: [], status: 'loading', error: null }
+export function useFeed(sort: 'top' | 'new', day?: string) {
+  const [state, setState] = useState<FeedState>({ status: 'loading' })
 
-export function useFeed({ topic, tag }: FeedFilters) {
-  const [state, setState] = useState<FeedState>(INITIAL)
-
-  const filterKey = `${topic ?? ''}|${tag ?? ''}`
-  const [loadedKey, setLoadedKey] = useState(filterKey)
-  if (loadedKey !== filterKey) {
-    setLoadedKey(filterKey)
-    setState(INITIAL)
+  const key = `${sort}|${day ?? ''}`
+  const [loadedKey, setLoadedKey] = useState(key)
+  if (loadedKey !== key) {
+    setLoadedKey(key)
+    setState({ status: 'loading' })
   }
 
   useEffect(() => {
     const controller = new AbortController()
-    fetchFeed({ topic, tag }, controller.signal)
-      .then((feed) => setState({ items: feed.items, status: 'idle', error: null }))
+    fetchFeed({ sort, day }, controller.signal)
+      .then((feed) => setState({ status: 'ready', items: feed.items }))
       .catch((error: Error) => {
-        if (!controller.signal.aborted) setState({ items: [], status: 'error', error })
+        if (!controller.signal.aborted) setState({ status: 'error', error })
       })
     return () => controller.abort()
-  }, [topic, tag])
+  }, [sort, day])
 
   return state
 }

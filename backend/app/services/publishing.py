@@ -12,19 +12,16 @@ from app.db.models import (
     ItemLink,
     LinkKind,
     SubmissionCheck,
-    Topic,
-    TopicTag,
     utc_now,
 )
 from app.db.repositories import items as item_repo
 from app.db.repositories import search as search_repo
 from app.db.repositories import submission_checks as check_repo
-from app.db.repositories import topics as topic_repo
 from app.dto.items import ItemDetail, SubmitItemRequest
 from app.errors import AppError, ErrorCode
 from app.services.identity import Credentials, Identity, resolve_identity
 from app.services.item_views import to_detail
-from app.services.moderation import Submission, TopicOption, Verdict, judge
+from app.services.moderation import Submission, Verdict, judge
 from app.services.rate_limits import RATE_WINDOW, check_rate
 from app.services.urls import display_domain
 
@@ -52,11 +49,10 @@ class PublishingService:
             )
         identity = self._identity(credentials)
         self._check_rate(identity)
-        topic, tags = self._topic_and_tags(request)
         self._check_label(request.label, identity)
         self._reject_known_url(request.url)
-        check = self._judge(request, topic, identity)
-        return self._insert(request, identity, topic, tags, check)
+        check = self._judge(request, identity)
+        return self._insert(request, identity, check)
 
     def _identity(self, credentials: Credentials) -> Identity:
         identity = resolve_identity(self._session, credentials)
@@ -75,20 +71,6 @@ class PublishingService:
         )
         check_rate(count, oldest, self._settings.submit_per_hour, now, "submissions")
 
-    def _topic_and_tags(self, request: SubmitItemRequest) -> tuple[Topic, list[TopicTag]]:
-        topic = topic_repo.get_by_slug(self._session, request.topic)
-        if topic is None:
-            raise AppError(ErrorCode.UNKNOWN_TOPIC, f"Unknown topic '{request.topic}'.")
-        by_name = {tag.name: tag for tag in topic.tags}
-        tags: list[TopicTag] = []
-        for name in dict.fromkeys(request.tags):
-            if name not in by_name:
-                raise AppError(
-                    ErrorCode.UNKNOWN_TAG, f"Unknown tag '{name}' for topic '{topic.slug}'."
-                )
-            tags.append(by_name[name])
-        return topic, tags
-
     def _check_label(self, label: str | None, identity: Identity) -> None:
         if label is not None and identity.account is None:
             raise AppError(
@@ -106,17 +88,11 @@ class PublishingService:
         if existing is not None:
             raise _duplicate(None if existing.deleted_at else existing.id, "same_url")
 
-    def _judge(
-        self,
-        request: SubmitItemRequest,
-        topic: Topic,
-        identity: Identity,
-    ) -> SubmissionCheck:
+    def _judge(self, request: SubmitItemRequest, identity: Identity) -> SubmissionCheck:
         settings = self._settings
         shortlist = search_repo.shortlist(
             self._session,
             request.title,
-            topic.id,
             self._clock() - timedelta(days=settings.jev_shortlist_days),
             settings.jev_shortlist_size,
         )
@@ -127,22 +103,16 @@ class PublishingService:
             username=identity.account.username if identity.account else None,
             label=request.label,
             domain=display_domain(request.url),
-            topic=topic.slug,
         )
-        topics = [
-            TopicOption(option.slug, option.description)
-            for option in topic_repo.list_topics(self._session)
-        ]
         check = SubmissionCheck(
             account_id=identity.account.id if identity.account else None,
             ip_hash=identity.ip_hash,
-            topic_id=topic.id,
             title=request.title,
             url=request.url,
             created_at=self._clock(),
         )
         try:
-            verdict = judge(self._jev, submission, topics, shortlist)
+            verdict = judge(self._jev, submission, shortlist)
         except JevUnavailableError as error:
             check.outcome = CheckOutcome.UNAVAILABLE
             self._save_rejection(check)
@@ -161,10 +131,6 @@ class PublishingService:
             check.outcome = CheckOutcome.HARMFUL
             self._save_rejection(check)
             raise AppError(ErrorCode.HARMFUL_CONTENT, "The submission contains harmful language.")
-        if 1 - verdict.topic_probability >= settings.jev_off_topic_min:
-            check.outcome = CheckOutcome.OFF_TOPIC
-            self._save_rejection(check)
-            raise AppError(ErrorCode.OFF_TOPIC, "The submission is not about the declared topic.")
         if (
             verdict.duplicate_of_id is not None
             and verdict.duplicate_probability >= settings.jev_same_story_min
@@ -181,14 +147,11 @@ class PublishingService:
         self,
         request: SubmitItemRequest,
         identity: Identity,
-        topic: Topic,
-        tags: list[TopicTag],
         check: SubmissionCheck,
     ) -> ItemDetail:
         item = Item(
             title=request.title,
             url=request.url,
-            topic=topic,
             account_id=identity.account.id if identity.account else None,
             label=request.label,
             ip_hash=identity.ip_hash,
@@ -196,7 +159,6 @@ class PublishingService:
             published_at=request.published_at,
             summary=request.summary,
             primary_ref=request.primary_ref,
-            tags=tags,
             links=_links(request),
             created_at=self._clock(),
         )
@@ -228,7 +190,6 @@ def _links(request: SubmitItemRequest) -> list[ItemLink]:
 def _record(check: SubmissionCheck, verdict: Verdict) -> None:
     check.model = verdict.model
     check.harm_probability = verdict.harm_probability
-    check.on_topic_probability = verdict.topic_probability
     check.duplicate_of_id = verdict.duplicate_of_id
     check.duplicate_probability = verdict.duplicate_probability
 

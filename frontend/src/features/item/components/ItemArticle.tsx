@@ -1,10 +1,8 @@
-import { Link } from 'react-router'
 import type { ItemDetail } from '../../../api/types.ts'
 import ExternalLink from '../../../components/ExternalLink/ExternalLink.tsx'
 import VoteArrow from '../../../components/VoteArrow/VoteArrow.tsx'
 import { useVote } from '../../../components/VoteArrow/useVote.ts'
 import { pluralize, timeAgo } from '../../../lib/format.ts'
-import { feedUrl } from '../../../routes/paths.ts'
 import ConnectionList from './ConnectionList.tsx'
 import LinkSection from './LinkSection.tsx'
 import './ItemArticle.css'
@@ -22,11 +20,6 @@ function ItemArticle({ item }: { item: ItemDetail }) {
             {item.title}
           </ExternalLink>
           <span className="item-article-domain">({item.domain})</span>
-          {item.tags.map((tag) => (
-            <Link key={tag} className="item-article-tag" to={feedUrl({ topic: item.topic, tag })}>
-              #{tag}
-            </Link>
-          ))}
         </div>
 
         <div className="item-article-meta">
@@ -40,10 +33,6 @@ function ItemArticle({ item }: { item: ItemDetail }) {
           <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>
             {timeAgo(item.created_at)}
           </time>
-          <span className="item-article-separator" aria-hidden="true">|</span>
-          <Link className="item-article-topic" to={feedUrl({ topic: item.topic })}>
-            {item.topic}
-          </Link>
           <span className="item-article-separator" aria-hidden="true">|</span>
           <span>{item.comment_count === 0 ? 'discuss' : pluralize(item.comment_count, 'comment')}</span>
         </div>

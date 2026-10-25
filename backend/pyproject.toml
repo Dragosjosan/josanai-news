@@ -10,6 +10,7 @@ dependencies = [
     "fastapi[standard]>=0.142.2",
     "httpx>=0.28.1",
     "pydantic-settings>=2.15.0",
+    "rapidfuzz>=3.14.6",
     "sqlalchemy>=2.1.3",
 ]
 

@@ -1,0 +1,16 @@
+.past-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: var(--space-2) 0 var(--space-2) 46px;
+  color: var(--muted);
+  font-size: var(--hn-text-sub);
+}
+
+.past-nav a {
+  color: inherit;
+}
+
+.past-day {
+  color: var(--ink);
+}

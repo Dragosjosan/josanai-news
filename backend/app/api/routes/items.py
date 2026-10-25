@@ -28,7 +28,7 @@ def list_items(
     credentials: RequestCredentials,
     feed: FeedServiceDep,
 ) -> FeedResponse:
-    return feed.get_front_page(query, credentials.ip_hash)
+    return feed.get_feed(query, credentials.ip_hash)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

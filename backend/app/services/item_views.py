@@ -12,8 +12,6 @@ def to_summary(item: Item, voted: bool) -> ItemSummary:
         title=item.title,
         url=item.url,
         domain=display_domain(item.url),
-        topic=item.topic.slug,
-        tags=[tag.name for tag in item.tags],
         score=item.upvotes,
         comment_count=0,
         username=item.account.username if item.account else None,

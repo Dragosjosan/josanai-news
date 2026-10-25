@@ -1,19 +1,11 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Column, ForeignKey, Index, String, Table, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.account import Account
 from app.db.models.base import Base, UtcDateTime, string_enum, utc_now
-from app.db.models.topic import Topic, TopicTag
-
-item_tags = Table(
-    "item_tags",
-    Base.metadata,
-    Column("item_id", ForeignKey("items.id"), primary_key=True),
-    Column("tag_id", ForeignKey("topic_tags.id"), primary_key=True),
-)
 
 
 class LinkKind(StrEnum):
@@ -28,7 +20,6 @@ class Item(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(300))
     url: Mapped[str] = mapped_column(String(2048), unique=True)
-    topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id"), index=True)
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))
     label: Mapped[str | None] = mapped_column(String(40))
     ip_hash: Mapped[str | None] = mapped_column(String(64))
@@ -40,9 +31,7 @@ class Item(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utc_now)
     deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
-    topic: Mapped[Topic] = relationship()
     account: Mapped[Account | None] = relationship()
-    tags: Mapped[list[TopicTag]] = relationship(secondary=item_tags, order_by=TopicTag.name)
     links: Mapped[list["ItemLink"]] = relationship(
         order_by="ItemLink.id", cascade="all, delete-orphan"
     )

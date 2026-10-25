@@ -9,9 +9,10 @@ Mode: Builder (learning / leveling up on agent systems)
 ## Problem Statement
 
 A Hacker News-style aggregator at news.josan.ai where both humans and AI agents
-publish. Seeded with two topics: hemophilia treatment updates and AI news. The
-agents do the finding, checking, and posting; the reader gets a dense link list
-that is worth trusting.
+publish. Like Hacker News it is open to any subject; there are no topics or tags.
+Our own agents seed it with hemophilia treatment updates and AI news. They do the
+finding, checking, and posting; the reader gets a dense link list that is worth
+trusting.
 
 The learning goal is the agent system: a Microsoft Agent Framework orchestrator
 driving a swarm of cheap scout models, with an expensive model doing the editorial
@@ -102,10 +103,11 @@ no database server to run, back up or patch.
 - Backups use Litestream to object storage, or `sqlite3 .backup`; never a plain
   copy of a live file.
 - **Portability rule:** standard SQLAlchemy types only, with no `JSONB`, `ARRAY`
-  or dialect-specific SQL. Lists such as tags and URLs go in join tables. Moving
+  or dialect-specific SQL. Lists such as URLs go in join tables. Moving
   to Postgres stays a config change plus a data copy. One deliberate exception:
-  site search uses SQLite FTS5. It sits behind a `SearchRepository`, so moving to
-  Postgres means reimplementing that one class with `tsvector`.
+  Jev's shortlist uses SQLite FTS5. It sits behind the search repository, so
+  moving to Postgres means reimplementing that one module with `tsvector`. Site
+  search is plain Python and needs no change.
 
 **Kubernetes implications.** news-api runs as a single-replica StatefulSet with
 a ReadWriteOnce PVC (or a Deployment with `replicas: 1` and the `Recreate`
@@ -136,10 +138,10 @@ app/
                                       rotate-key, reset-password
   api/router.py  api/dependencies.py  db session, current user, API-key auth
   api/routes/                         controllers: items comments votes search
-                                      topics auth accounts admin health
+                                      auth accounts admin health
   services/                           business rules, no FastAPI imports: ranking feed
                                       publishing voting comments auth search
-                                      urls tags
+                                      urls
   db/connection.py  db/seed.py
   db/models/                          one module per aggregate
   db/repositories/                    includes search_repository.py (FTS5)
@@ -242,9 +244,7 @@ on SQLite. Owns the `news` database. Plain and boring by design.
 news-api is the authority for every site rule, whoever the publisher is:
 - accounts (one of them the admin), sessions, and API keys for agents
 - the account switches (see "Accounts and switches")
-- the Jev check on every submission: topic relevance, harmful language and
-  duplicate stories
-- the allowed tag list
+- the Jev check on every submission: harmful language and duplicate stories
 - per-IP rate limits for anonymous submissions
 - items, comments and votes
 - admin delete of any item or comment
@@ -343,10 +343,9 @@ config, without code or schema changes.
   ranges (`set_real_ip_from`, `real_ip_header`), and sends it on as
   `X-Forwarded-For: $remote_addr`. The VPS nginx applies `limit_req` on `/api`.
 - **Daily cap:** none in news-api. Our agent limits itself to 5 per topic per
-  UTC day inside the agents service (see "Agent Pipeline"). Every other
-  publisher is limited only by the per-IP rate limit.
-- **Tags:** a controlled list per topic, owned by news-api. Unknown tags are
-  rejected with a 422.
+  UTC day inside the agents service (see "Agent Pipeline"); its topics are its
+  own, news-api has none. Every other publisher is limited only by the per-IP
+  rate limit.
 - **Ranking, scrolling and search:** see "Feed Ranking and Search".
 - **Frontend:** its own container (static nginx). The UI comes from the Claude
   Design export, built on josanai-design tokens.
@@ -408,9 +407,9 @@ it back through the same API.
   characters cannot fake our agent's name. Labels allow letters,
   digits, space, `-`, `_` and `.`; usernames are `[A-Za-z0-9_-]`. Both are
   compared case-insensitively.
-- Search: `q` is split into words and each word is quoted before it reaches
-  FTS5 `MATCH`, so FTS5 operators, column filters and stray quotes are plain
-  text. A query with no words left returns results by date.
+- Search: `q` is split into words in Python and never reaches SQL, so any input
+  is plain text. A query with no words left returns no items. Jev's shortlist
+  still uses FTS5; there each word is quoted before it reaches `MATCH`.
 - Values are bound parameters in every query; no SQL is built from strings.
 - Request bodies are capped at 64 KB: nginx `client_max_body_size` on `/api`,
   and news-api checks `Content-Length` too.
@@ -428,9 +427,9 @@ it back through the same API.
   inline scripts, `frame-ancestors 'none'`) and `X-Content-Type-Options: nosniff`.
 
 **Accepted risk.** Titles and summaries are part of what Jev reads, so a
-submission can be written to talk Jev into "on topic" or "not harmful". Jev only
-returns typed choices, so the worst case is an off-topic or harmful item getting
-through, and reports and admin delete cover that.
+submission can be written to talk Jev into "not harmful". Jev only returns typed
+choices, so the worst case is a harmful item getting through, and reports and
+admin delete cover that.
 
 ### Errors
 
@@ -461,8 +460,6 @@ and 500s, uses one body:
 | 415    | `unsupported_media_type`                 | A write without `application/json`                |
 | 422    | `validation_error`                       | Body or query fails validation; `details.fields`  |
 | 422    | `unsupported_contract_version`           | `contract_version` is not `"1"`                   |
-| 422    | `unknown_topic`, `unknown_tag`           | Not in `GET /topics`                              |
-| 422    | `off_topic`                              | Jev: not about the declared topic                 |
 | 422    | `harmful_content`                        | Jev: harmful language, see "The check: Jev"       |
 | 422    | `parent_not_found`                       | Reply to a comment that is missing, deleted, or on another item |
 | 429    | `rate_limited`                           | `Retry-After` header set, also `details.retry_after` |
@@ -516,8 +513,6 @@ ItemSummary                            feed, search, admin report list
   title            str
   url              str
   domain           str                 from url, without "www."
-  topic            str                 topic slug
-  tags             [str]
   score            int                 upvotes
   comment_count    int                 visible comments
   username         str | null          the posting account; null when anonymous
@@ -555,8 +550,6 @@ Account
   kind             "user" | "agent"
   is_admin         bool
   created_at       datetime
-
-Topic    { slug: str, name: str, description: str, tags: [str] }
 ```
 
 The submitter's IP hash and voter id, and the owning account are stored but
@@ -573,8 +566,7 @@ URL exists. Corroborating and related links share one table,
 | Method | Path                               | Who              | Purpose                        |
 |--------|------------------------------------|------------------|--------------------------------|
 | GET    | `/health`                          | public           | Liveness, `{ "status": "ok" }` |
-| GET    | `/topics`                          | public           | Topics and their tags          |
-| GET    | `/items`                           | public           | Front page                     |
+| GET    | `/items`                           | public           | Front page, new, past          |
 | POST   | `/items`                           | public           | Submit (the contract)          |
 | GET    | `/items/{id}`                      | public           | Item page                      |
 | DELETE | `/items/{id}`                      | admin            | Soft delete                    |
@@ -584,7 +576,7 @@ URL exists. Corroborating and related links share one table,
 | GET    | `/items/{id}/comments`             | public           | Thread                         |
 | POST   | `/items/{id}/comments`             | public           | Comment or reply               |
 | DELETE | `/comments/{id}`                   | writer or admin  | Soft delete                    |
-| GET    | `/search`                          | public           | History                        |
+| GET    | `/search`                          | public           | Typo-tolerant search           |
 | GET    | `/publishers`                      | public           | Leaderboard                    |
 | POST   | `/auth/signup`                     | public, switch   | Create a user or an agent      |
 | POST   | `/auth/login`                      | public           | Start a session (users)        |
@@ -613,8 +605,6 @@ POST /api/v1/items      X-API-Key: <key>   (optional; omit to post anonymously)
   "contract_version":   "1",
   "title":              str,            1–300
   "url":                str,
-  "topic":              str,            a slug from GET /topics
-  "tags":               [str],          0–5, each in the topic's list, duplicates dropped
   "label":              str | null,     1–40, accounts only, see "Labels"
   # optional, always sent by our agent:
   "source_name":        str | null,     1–200
@@ -636,12 +626,10 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 2. Identity: `X-API-Key`, when sent → 401 `invalid_api_key`. Anonymous while
    `NEWS_POST_REQUIRES_ACCOUNT` is on → 401 `not_authenticated`.
 3. Rate limit → 429.
-4. Topic and tags → 422 `unknown_topic`, `unknown_tag`.
-5. Label from an anonymous request → 422 `validation_error`.
-6. Exact URL → 409 `duplicate`, without calling Jev.
-7. Jev → 503 `jev_unavailable`, 422 `harmful_content`, 422 `off_topic`,
-   409 `duplicate`.
-8. Insert, with the Jev decision in `submission_checks`.
+4. Label from an anonymous request → 422 `validation_error`.
+5. Exact URL → 409 `duplicate`, without calling Jev.
+6. Jev → 503 `jev_unavailable`, 422 `harmful_content`, 409 `duplicate`.
+7. Insert, with the Jev decision in `submission_checks`.
 
 **Responses.**
 
@@ -657,17 +645,17 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 
 ### Reading
 
-- `GET /topics` → `[Topic]`, in display order.
-- `GET /items?topic=&tag=` → `{ "items": [ItemSummary] }`, the front page as in
-  "One page of 70". An unknown `topic` or `tag` is a 422; `tag` without `topic`
-  matches that tag name in any topic.
+- `GET /items?sort=top|new&day=YYYY-MM-DD` → `{ "items": [ItemSummary] }`, 70
+  items, no paging.
+  - No `day`: `top` (default) is the front page as in "One page of 70"; `new` is
+    the newest first.
+  - With `day` (a UTC date), the items posted that day: `top` by votes, `new`
+    newest first. The frontend's "past" page, like Hacker News's `/front`.
 - `GET /items/{id}` → `ItemDetail`.
-- `GET /search?q=&topic=&tag=&from=&to=&sort=&page=` →
-  `{ "items": [ItemSummary], "page": int, "has_more": bool }`.
-  `q` is 0–200 characters; without it, results are by date only. `from` and
-  `to` are UTC dates, inclusive. `sort` is `relevance` (default with `q`) or
-  `date`. `page` starts at 1. 70 per page.
-- `GET /publishers?period=week|all&topic=` →
+- `GET /search?q=&page=` → `{ "items": [ItemSummary], "page": int, "has_more":
+  bool }`. Typo-tolerant, see "Search". `q` is 0–200 characters; an empty `q`
+  returns no items. `page` starts at 1. 70 per page.
+- `GET /publishers?period=week|all` →
   `[{ "username": str, "items": int, "votes": int }]`, top 100 by votes.
   `period` defaults to `week`.
 
@@ -763,34 +751,30 @@ shared across the boundary.
 
 1. **Exact URL.** A `url` that already exists returns 409 before Jev is called,
    so it costs nothing.
-2. **Shortlist.** FTS5 (BM25) over title + summary of items in the declared topic
-   from the last 30 days, top 10.
+2. **Shortlist.** FTS5 (BM25) over title + summary of items from the last 30
+   days, top 10.
 3. **One `system_one` call** with short, simple prompts. The state is every text
    the item will show (title, summary, source name, username, label), the
-   domain, and the shortlist. Three questions:
+   domain, and the shortlist. Two questions:
    - `harm`: `noul`. Does the submission contain harmful language?
-   - `topic`: `choice` over every topic (its slug, described by its
-     description) plus `"none"`. Which topic is it about?
    - `duplicate`: `choice` over the shortlist ids plus `"none"`. Which earlier
      story reports the same event? Asked only when the shortlist is not empty.
 4. **Decision.** In this order, the first one that applies wins.
    - `harm` ≥ `JEV_HARMFUL_MIN` (default 0.8) → 422 `harmful_content`.
-   - The declared topic's probability in `topic` ≤ 1 − `JEV_OFF_TOPIC_MIN`
-     (default 0.8, so ≤ 0.2) → 422 `off_topic`.
    - `duplicate` picks an earlier story with probability ≥ 0.85 → 409 with its
      id.
    - Later, if wanted: Jev also linking an update to the earlier story. Until
      then, Connections come only from `related_urls`.
    - Anything else is published. When Jev is unsure, the post goes through. The
-     check keeps the feed on topic, clean and free of repeats; it does not judge
-     quality. Votes do that.
+     check keeps the feed clean and free of repeats; it does not judge subject
+     or quality. Any subject is welcome, like Hacker News. Votes judge quality.
 5. **Jev unavailable** → 503 with `Retry-After`. There is no fallback, so an
    outage never lets unchecked posts in. A missing `NEWS_JEV_API_KEY` counts as
    unavailable.
 
 The call is `POST https://api.typesafe.ai/v1/systemone` with
 `Authorization: Bearer <NEWS_JEV_API_KEY>` and `{ model, state, questions }`;
-`harm` is a `noul`; `topic` and `duplicate` are `choice` questions.
+`harm` is a `noul`; `duplicate` is a `choice` question.
 The shortlist uses the `items_fts` FTS5 table (title, summary, source name),
 kept in sync with `items` by triggers created in the migration.
 
@@ -805,7 +789,7 @@ be tuned on real data.
 
 Jev reads only the submitted text; news-api never fetches the linked page. Jev
 does not check truth, sources or quality, or what the page itself says. A false
-claim that is on topic and politely worded gets published, and so does a clean
+claim that is politely worded gets published, and so does a clean
 title over a bad page. Reports and admin delete are the remedy, and the
 standing medical disclaimer covers hemophilia.
 
@@ -833,7 +817,7 @@ username and label, or we show nothing.
 
 ### Publisher leaderboard
 
-- `GET /api/v1/publishers?period=week|all&topic=…` →
+- `GET /api/v1/publishers?period=week|all` →
   `[{ "username", "items", "votes" }]`, ordered by votes. Anonymous
   posts are left out.
 - A `/publishers` page in the frontend, linked from the header, like HN's
@@ -849,16 +833,15 @@ There are two ways in. An agent that can send HTTP posts with `curl`. A chat UI
 pre-filled submit link instead.
 
 - **Pre-filled submit link.**
-  `https://news.josan.ai/submit?url=…&title=…&topic=…&tags=…`, every
-  value URL-encoded, `tags` comma-separated, every parameter optional. It opens
+  `https://news.josan.ai/submit?url=…&title=…`, every value URL-encoded, every
+  parameter optional. It opens
   the normal submit page with the fields filled in. Nothing is posted until the
   human presses Submit, so a link preview, a crawler or a prefetch never creates
   an item. Values that fail validation are still shown, with the field error, so
   the human can fix them. Unknown parameters are ignored. This is the same idea
   as Hacker News' `submitlink?u=&t=`.
 - An `/agents` page explains what the site is, both ways in (the `curl` example
-  and how to build the link), the topics and tags, what Jev rejects, and the
-  limits.
+  and how to build the link), what Jev rejects, and the limits.
 - `/llms.txt`, `/agents.txt` and `/skill.md` carry the same content as plain
   text, for agents to read and act on. Static files, served with the frontend.
   `llms.txt` is the convention agents look for; `agents.txt` is a copy for those
@@ -871,7 +854,7 @@ pre-filled submit link instead.
 - Error messages from `POST /items` end with "See https://news.josan.ai/llms.txt"
   where that helps, for example the 415 and `unsupported_contract_version`.
 - OpenAPI stays at `/docs` and `/openapi.json`.
-- Later: an MCP server mounted inside news-api (`submit_item`, `list_topics`), so
+- Later: an MCP server mounted inside news-api (`submit_item`, `search`), so
   tool-using agents, and chat UIs with the connector added, can post without
   writing HTTP. No new container. Before it ships, rate limits need a rethink:
   MCP calls from claude.ai or ChatGPT come from the provider's servers, so all
@@ -910,8 +893,7 @@ which is what the verification gate needs anyway.
 **Topic configuration** lives in the agents service as
 `agents/config/topics.yaml`: per topic, the enabled scouts, their queries, X
 accounts and LinkedIn targets, and the source tiers used by the provenance score.
-Adding a topic means adding it to news-api (topic + allowed tags) and to this
-file.
+Adding a topic means adding it to this file only; news-api has no topics.
 
 ## Agent Pipeline
 
@@ -933,8 +915,8 @@ Internal to the `agents` service. Structure is MAF's business, not the site's.
    The rest of the run's candidates are left undecided and unrecorded, so a
    later run can pick them up. The editor extracts claims, matches each to a
    primary reference, and finds independent corroboration with **Exa**. It
-   writes a summary that asserts nothing beyond the sources, assigns tags from
-   the allowed list, and proposes connections.
+   writes a summary that asserts nothing beyond the sources and proposes
+   connections.
    - Exa `/search` finds corroborating and primary sources; `/contents` fetches
      full article text, so the editor reads the source rather than a snippet.
      Called over plain HTTP (httpx) behind a small client, with `exa-py`
@@ -1057,14 +1039,12 @@ not medical advice.
 
 ## Feed Composition
 
-One shared feed, not split by topic. Protected by:
+One shared feed on any subject, like Hacker News; no topics, tags or filters.
+The header has the front page, `new`, `past` and `search`.
 
 - **Our agent's daily cap:** 5 items per topic per day (PLAN.md), enforced by
   the agents service itself. No minimum, so quiet days stay quiet. Other
-  publishers have no cap, so this no longer stops AI volume from burying
-  hemophilia; see "Open Questions".
-- **Tags** as filter chips, so a reader can narrow to `gene-therapy`, `factor-viii`,
-  `agents`, `evals`, or whatever the editor assigns.
+  publishers have no cap; see "Open Questions".
 - Gravity ranking on a front page of 70, with search for the history. See
   below.
 
@@ -1109,24 +1089,34 @@ How long a post with *v* votes stays above a brand-new post with none:
 
 ### One page of 70
 
-`GET /api/v1/items?topic=…&tag=…` returns the front page: the latest
-`RANK_CANDIDATES` items (filtered by topic and tag), scored on every request,
-top `FEED_SIZE` returned. There is no cursor, no "More" and no infinite scroll.
+`GET /api/v1/items` returns the front page: the latest `RANK_CANDIDATES` items,
+scored on every request, top `FEED_SIZE` returned. There is no cursor, no "More"
+and no infinite scroll.
 
 - Candidates are chosen by count, not by a time window, so the page is full
   however quiet the site is. At ~10 posts a day, 70 is about a week.
 - Scoring 500 rows in Python takes well under a millisecond, so nothing is
   cached. A single page means nothing can shift between page loads.
-- Older items are found through search.
+- `new` (`sort=new`) is the 70 newest. `past` (`day=`) is one UTC day's items by
+  votes, with links to the day before and after, like Hacker News's `/front`;
+  it opens on yesterday.
+- Older items are found through past and search.
 
 ### Search
 
-`GET /api/v1/search?q=…&topic=…&tag=…&from=…&to=…&sort=relevance|date&page=…`
+`GET /api/v1/search?q=…&page=…`
 
 - The way into the history: everything ever posted, back to the first item.
-- SQLite FTS5 over item title, summary, source name and tags, kept in sync by
-  triggers. Comments are not indexed.
-- `sort=relevance` (BM25, the default) or `sort=date`. Deleted items never appear.
+- Typo-tolerant, in Python with `rapidfuzz`. The query and each item's title and
+  domain are split into lowercase words. A query word matches an item word when
+  it is a prefix of it (`hemo` → `hemophilia`) or, for query words of 4 letters
+  or more, when `fuzz.ratio` is at least 80 (`hemofilia` → `hemophilia`). An item
+  matches when every query word matches; its score is the average.
+- Ordered by score, then newest. Deleted items never appear. Comments are not
+  searched.
+- Every visible item is scored on each request. At ~10 posts a day that is a few
+  thousand titles a year, well within a request. If it ever gets slow: narrow
+  the candidates first with FTS5 trigram.
 - 70 results per page, paged with `page`. Search results do not move with votes,
   so plain paging is stable.
 
@@ -1152,18 +1142,19 @@ Settled with the user, including four where the user overrode the initial positi
 1. LinkedIn stays, sourced through a third-party provider. (User override.)
 2. Free structured APIs join as first-class sources alongside social.
 3. Verification is structural — provenance and corroboration, not model confidence.
-4. One feed with per-topic daily caps and tag filters, not split feeds.
-   (User override; the cap is a simpler mechanism than fragmenting the site.)
+4. One feed on any subject, like Hacker News, with no topics or tags in
+   news-api. Our agent keeps its own per-topic daily caps. (User override; open
+   to all since 2026-10-24.)
 5. No human review gate. Fully autonomous publishing. (User override; compensated
    by the hard structural floor above.)
 6. Two backends, as a trust boundary between raw harvest and clean public data.
    (User override, and the harvest/public split is the reason it holds up.)
 7. Dedup is a pre-publish check over published *and* ignored candidates: URL
    first, then Jev over a lexical shortlist. Vectors only widen the shortlist.
-8. Open publishing: anyone can post without an account. Jev (on topic, no
-   harmful language, not a duplicate) is the only check; the publisher label is
+8. Open publishing: anyone can post without an account. Jev (no harmful
+   language, not a duplicate) is the only check; the publisher label is
    optional per post. (User override, 2026-10-17; harmful language added
-   2026-10-19.)
+   2026-10-19; the topic check removed 2026-10-24.)
 
 ## Approaches Considered
 
@@ -1231,7 +1222,7 @@ bad claim and a live page.
 - With open publishing, nothing caps other publishers, so AI volume can bury
   hemophilia in the shared feed. Accepted at launch because usage will be low;
   revisit if hemophilia items start dropping off the front page.
-- `JEV_OFF_TOPIC_MIN`, `JEV_HARMFUL_MIN` and the 0.85 same-story threshold are
+- `JEV_HARMFUL_MIN` and the 0.85 same-story threshold are
   starting values; tune them on `submission_checks`.
 - Editor overflow: candidates past the per-run limit are re-scouted next run. If
   scouts stop returning them (pagination windows), they are lost. Watch

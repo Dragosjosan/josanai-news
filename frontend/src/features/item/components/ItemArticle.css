@@ -39,12 +39,6 @@
   white-space: nowrap;
 }
 
-.item-article-tag {
-  color: var(--accent);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
 .item-article-meta {
   display: flex;
   flex-wrap: wrap;
@@ -62,15 +56,6 @@
 
 .item-article-separator {
   color: var(--muted-2);
-}
-
-.item-article-topic {
-  color: inherit;
-  text-decoration: none;
-}
-
-.item-article-topic:hover {
-  text-decoration: underline;
 }
 
 .item-article-summary {

@@ -1,36 +1,29 @@
-import { Link, useSearchParams } from 'react-router'
-import { useTopics } from '../app/topicsContext.ts'
-import { feedUrl, paths } from '../routes/paths.ts'
+import { NavLink } from 'react-router'
+import { paths } from '../routes/paths.ts'
 import AccountLinks from './AccountLinks.tsx'
 import './SiteHeader.css'
 
 function SiteHeader() {
-  const topicsState = useTopics()
-  const [searchParams] = useSearchParams()
-  const activeTopic = searchParams.get('topic')
-  const topics = topicsState.status === 'ready' ? topicsState.topics : []
-
   return (
     <header className="site-header">
-      <Link to={paths.home} className="site-brand">
+      <NavLink to={paths.home} className="site-brand">
         news.josan.ai
-      </Link>
+      </NavLink>
 
-      <nav className="site-nav" aria-label="Topics">
-        {topics.map((topic) => (
-          <Link
-            key={topic.slug}
-            to={feedUrl({ topic: topic.slug })}
-            className="site-nav-link"
-            aria-current={activeTopic === topic.slug ? 'page' : undefined}
-          >
-            {topic.slug}
-          </Link>
-        ))}
+      <nav className="site-nav" aria-label="Main">
+        <NavLink to={paths.newest} className="site-nav-link">
+          new
+        </NavLink>
+        <NavLink to={paths.past} className="site-nav-link">
+          past
+        </NavLink>
+        <NavLink to={paths.search} className="site-nav-link">
+          search
+        </NavLink>
       </nav>
 
       <div className="site-actions">
-        <Link to={paths.submit}>submit</Link>
+        <NavLink to={paths.submit}>submit</NavLink>
         <span aria-hidden="true">|</span>
         <AccountLinks />
       </div>

@@ -4,6 +4,8 @@ import LoginPage from '../features/auth/LoginPage.tsx'
 import FeedPage from '../features/feed/FeedPage.tsx'
 import ItemPage from '../features/item/ItemPage.tsx'
 import NotFoundPage from '../features/not-found/NotFoundPage.tsx'
+import PastPage from '../features/past/PastPage.tsx'
+import SearchPage from '../features/search/SearchPage.tsx'
 import SubmitPage from '../features/submit/SubmitPage.tsx'
 import { paths } from './paths.ts'
 
@@ -12,7 +14,10 @@ export const router = createBrowserRouter([
     path: paths.home,
     element: <AppLayout />,
     children: [
-      { index: true, element: <FeedPage /> },
+      { index: true, element: <FeedPage sort="top" /> },
+      { path: paths.newest, element: <FeedPage key="new" sort="new" /> },
+      { path: paths.past, element: <PastPage /> },
+      { path: paths.search, element: <SearchPage /> },
       { path: paths.submit, element: <SubmitPage /> },
       { path: paths.login, element: <LoginPage /> },
       { path: paths.item, element: <ItemPage /> },

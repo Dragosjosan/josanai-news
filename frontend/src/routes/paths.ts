@@ -1,7 +1,8 @@
-import type { FeedFilters } from '../api/types.ts'
-
 export const paths = {
   home: '/',
+  newest: '/newest',
+  past: '/front',
+  search: '/search',
   submit: '/submit',
   login: '/login',
   item: '/item/:id',
@@ -11,10 +12,12 @@ export function itemUrl(id: number): string {
   return `/item/${id}`
 }
 
-export function feedUrl({ topic, tag }: FeedFilters = {}): string {
-  const params = new URLSearchParams()
-  if (topic) params.set('topic', topic)
-  if (tag) params.set('tag', tag)
-  const qs = params.toString()
-  return qs ? `${paths.home}?${qs}` : paths.home
+export function pastUrl(day: string): string {
+  return `${paths.past}?day=${day}`
+}
+
+export function searchUrl(q: string, page = 1): string {
+  const params = new URLSearchParams({ q })
+  if (page > 1) params.set('page', String(page))
+  return `${paths.search}?${params.toString()}`
 }

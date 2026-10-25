@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from app.api.routes import auth, items, topics
+from app.api.routes import auth, items, search
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(items.router)
-api_router.include_router(topics.router)
+api_router.include_router(search.router)

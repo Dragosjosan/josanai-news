@@ -1,10 +1,3 @@
-export type Topic = {
-  slug: string
-  name: string
-  description: string
-  tags: string[]
-}
-
 export type VoteDirection = 'up'
 
 export type FeedItem = {
@@ -12,8 +5,6 @@ export type FeedItem = {
   title: string
   url: string
   domain: string
-  topic: string
-  tags: string[]
   score: number
   comment_count: number
   username: string | null
@@ -54,16 +45,20 @@ export type Feed = {
   items: FeedItem[]
 }
 
-export type FeedFilters = {
-  topic?: string
-  tag?: string
+export type FeedQuery = {
+  sort?: 'top' | 'new'
+  day?: string
+}
+
+export type SearchResult = {
+  items: FeedItem[]
+  page: number
+  has_more: boolean
 }
 
 export type SubmitItemBody = {
   url: string
   title: string
-  topic: string
-  tags: string[]
 }
 
 export type Account = {

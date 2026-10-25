@@ -18,7 +18,7 @@ function problemsOf(error: ApiError): string[] {
   )
 }
 
-export function useSubmit(onDone: (body: SubmitItemBody) => void) {
+export function useSubmit(onDone: () => void) {
   const [state, setState] = useState<SubmitState>({ status: 'idle' })
 
   async function submit(body: SubmitItemBody) {
@@ -26,7 +26,7 @@ export function useSubmit(onDone: (body: SubmitItemBody) => void) {
     try {
       await submitItem(body)
       setState({ status: 'idle' })
-      onDone(body)
+      onDone()
     } catch (error) {
       if (error instanceof ApiError) {
         setState({ status: 'error', message: error.message, problems: problemsOf(error) })

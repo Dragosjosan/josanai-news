@@ -1,36 +1,27 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Literal
 
 from pydantic import (
     AfterValidator,
     AwareDatetime,
     BaseModel,
-    BeforeValidator,
     Field,
-    StringConstraints,
 )
 
 from app.dto.validation import (
     Label,
     PrimaryRef,
     RequestModel,
+    SearchText,
     SourceName,
     Summary,
     Title,
     WebUrl,
-    clean_line,
 )
 
 VoteDirection = Literal["up"]
 
 MAX_FUTURE = timedelta(hours=24)
-
-TagName = Annotated[
-    str, BeforeValidator(clean_line), StringConstraints(min_length=1, max_length=48)
-]
-TopicSlug = Annotated[
-    str, BeforeValidator(clean_line), StringConstraints(min_length=1, max_length=32)
-]
 
 
 def _not_far_future(value: datetime) -> datetime:
@@ -43,16 +34,19 @@ PublishedAt = Annotated[AwareDatetime, AfterValidator(_not_far_future)]
 
 
 class FeedQuery(BaseModel):
-    topic: str | None = None
-    tag: str | None = None
+    sort: Literal["top", "new"] = "top"
+    day: date | None = None
+
+
+class SearchQuery(BaseModel):
+    q: SearchText = ""
+    page: int = Field(default=1, ge=1)
 
 
 class SubmitItemRequest(RequestModel):
     contract_version: str
     title: Title
     url: WebUrl
-    topic: TopicSlug
-    tags: list[TagName] = Field(default_factory=list, max_length=5)
     label: Label | None = None
     source_name: SourceName | None = None
     published_at: PublishedAt | None = None
@@ -67,8 +61,6 @@ class ItemSummary(BaseModel):
     title: str
     url: str
     domain: str
-    topic: str
-    tags: list[str]
     score: int
     comment_count: int
     username: str | None
@@ -102,6 +94,12 @@ class ItemDetail(ItemSummary):
 
 class FeedResponse(BaseModel):
     items: list[ItemSummary]
+
+
+class SearchResponse(BaseModel):
+    items: list[ItemSummary]
+    page: int
+    has_more: bool
 
 
 class VoteRequest(RequestModel):

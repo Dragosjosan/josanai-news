@@ -16,7 +16,6 @@ _SHORTLIST = text(
     FROM items_fts
     JOIN items ON items.id = items_fts.rowid
     WHERE items_fts MATCH :query
-      AND items.topic_id = :topic_id
       AND items.deleted_at IS NULL
       AND items.created_at >= :since
     ORDER BY bm25(items_fts)
@@ -40,12 +39,10 @@ def match_query(text_value: str) -> str | None:
 
 
 def shortlist(
-    session: Session, text_value: str, topic_id: int, since: datetime, limit: int
+    session: Session, text_value: str, since: datetime, limit: int
 ) -> list[ShortlistEntry]:
     query = match_query(text_value)
     if query is None:
         return []
-    rows = session.execute(
-        _SHORTLIST, {"query": query, "topic_id": topic_id, "since": since, "limit": limit}
-    )
+    rows = session.execute(_SHORTLIST, {"query": query, "since": since, "limit": limit})
     return [ShortlistEntry(*row) for row in rows]
