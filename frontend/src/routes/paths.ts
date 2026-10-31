@@ -6,6 +6,8 @@ export const paths = {
   submit: '/submit',
   login: '/login',
   admin: '/admin',
+  adminReports: '/admin/reports',
+  adminAccounts: '/admin/accounts',
   item: '/item/:id',
 } as const
 

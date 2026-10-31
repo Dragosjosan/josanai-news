@@ -1,6 +1,8 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, Navigate } from 'react-router'
 import AppLayout from '../layouts/AppLayout.tsx'
-import AdminPage from '../features/admin/AdminPage.tsx'
+import AccountsPage from '../features/admin/AccountsPage.tsx'
+import AdminLayout from '../features/admin/AdminLayout.tsx'
+import ReportsPage from '../features/admin/ReportsPage.tsx'
 import LoginPage from '../features/auth/LoginPage.tsx'
 import FeedPage from '../features/feed/FeedPage.tsx'
 import ItemPage from '../features/item/ItemPage.tsx'
@@ -21,7 +23,15 @@ export const router = createBrowserRouter([
       { path: paths.search, element: <SearchPage /> },
       { path: paths.submit, element: <SubmitPage /> },
       { path: paths.login, element: <LoginPage /> },
-      { path: paths.admin, element: <AdminPage /> },
+      {
+        path: paths.admin,
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <Navigate to={paths.adminReports} replace /> },
+          { path: paths.adminReports, element: <ReportsPage /> },
+          { path: paths.adminAccounts, element: <AccountsPage /> },
+        ],
+      },
       { path: paths.item, element: <ItemPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

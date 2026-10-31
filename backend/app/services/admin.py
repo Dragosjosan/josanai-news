@@ -65,7 +65,7 @@ class AdminService:
             self._session.commit()
 
     def bulk_delete(self, request: BulkDeleteRequest) -> BulkDeleteResponse:
-        items = self._publisher_items(self._require_item(request.item_id), request.by)
+        items = self._submitter_items(self._require_item(request.item_id))
         if not request.dry_run:
             now = self._clock()
             for item in items:
@@ -91,14 +91,12 @@ class AdminService:
         session_repo.delete_for_account(self._session, account.id)
         self._session.commit()
 
-    def _publisher_items(self, item: Item, by: str) -> list[Item]:
-        if by == "submitter":
-            if item.ip_hash is None:
-                return []
+    def _submitter_items(self, item: Item) -> list[Item]:
+        if item.account_id is not None:
+            return item_repo.visible_by_account(self._session, item.account_id)
+        if item.ip_hash is not None:
             return item_repo.visible_by_ip_hash(self._session, item.ip_hash)
-        if item.account_id is None:
-            return []
-        return item_repo.visible_by_account(self._session, item.account_id)
+        return []
 
     def _require_item(self, item_id: int) -> Item:
         item = item_repo.get(self._session, item_id)

@@ -738,10 +738,10 @@ no endpoint for creating a report. A row has `item_id`, an optional `comment_id`
 - `DELETE /items/{id}` (admin) → 204. Idempotent. To delete a reported comment,
   the admin uses `DELETE /comments/{id}`.
 - `POST /admin/items/bulk-delete` with
-  `{ "item_id": int, "by": "submitter" | "account", "dry_run": bool }` →
-  200 `{ "deleted": int }`. Deletes every item that shares the given item's
-  submitter IP hash, or its account, so the hash never leaves the
-  server. `dry_run` only counts.
+  `{ "item_id": int, "dry_run": bool }` → 200 `{ "deleted": int }`. Deletes every
+  item from the same submitter as the given item: the same account, or the same
+  IP hash when it was posted anonymously. The hash never leaves the server.
+  `dry_run` only counts.
 - `DELETE /admin/accounts/{username}` → 204. Anonymizes the account as in
   "Privacy". An account with the `admin` role is refused with 403 `forbidden`;
   run `remove-admin` on the server first.

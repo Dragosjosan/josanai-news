@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,7 +26,6 @@ class ReportListResponse(BaseModel):
 
 class BulkDeleteRequest(RequestModel):
     item_id: int = Field(gt=0)
-    by: Literal["submitter", "account"]
     dry_run: bool = False
 
 

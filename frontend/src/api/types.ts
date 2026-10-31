@@ -90,8 +90,6 @@ export type ReportList = {
   reports: ReviewReport[]
 }
 
-export type BulkDeleteBy = 'submitter' | 'account'
-
 export type BulkDeleteResult = {
   deleted: number
 }

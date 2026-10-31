@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { bulkDelete, fetchReports, hideReport } from '../../api/admin.ts'
 import { deleteComment } from '../../api/comments.ts'
 import { deleteItem } from '../../api/items.ts'
-import type { BulkDeleteBy, ReviewReport } from '../../api/types.ts'
+import type { ReviewReport } from '../../api/types.ts'
 import { pluralize } from '../../lib/format.ts'
 
 type ReportsState =
@@ -47,11 +47,11 @@ export function useReports() {
     return run(() => (report.comment ? deleteComment(report.comment.id) : deleteItem(report.item.id)))
   }
 
-  function removeAll(report: ReviewReport, by: BulkDeleteBy) {
+  function removeAll(report: ReviewReport) {
     return run(async () => {
-      const { deleted } = await bulkDelete(report.item.id, by, true)
-      if (window.confirm(`Delete ${pluralize(deleted, 'story', 'stories')} from this ${by}?`)) {
-        await bulkDelete(report.item.id, by, false)
+      const { deleted } = await bulkDelete(report.item.id, true)
+      if (window.confirm(`Delete ${pluralize(deleted, 'story', 'stories')} from this submitter?`)) {
+        await bulkDelete(report.item.id, false)
       }
     })
   }
