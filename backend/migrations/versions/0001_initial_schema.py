@@ -256,7 +256,7 @@ def _create_search_index() -> None:
 def downgrade() -> None:
     for trigger in ("items_fts_update", "items_fts_delete", "items_fts_insert"):
         op.execute(f"DROP TRIGGER IF EXISTS {trigger}")
-    op.execute("DROP TABLE IF EXISTS items_fts")
+    op.drop_table("items_fts")
     for table in (
         "reports",
         "comment_checks",

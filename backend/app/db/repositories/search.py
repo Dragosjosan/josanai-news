@@ -2,26 +2,16 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import bindparam, text
+from sqlalchemy import ColumnClause, column, func, literal_column, select, table
 from sqlalchemy.orm import Session
 
-from app.db.models import UtcDateTime
+from app.db.models import Item
 
 MAX_QUERY_WORDS = 16
 _WORD = re.compile(r"\w+")
 
-_SHORTLIST = text(
-    """
-    SELECT items.id, items.title, items.summary
-    FROM items_fts
-    JOIN items ON items.id = items_fts.rowid
-    WHERE items_fts MATCH :query
-      AND items.deleted_at IS NULL
-      AND items.created_at >= :since
-    ORDER BY bm25(items_fts)
-    LIMIT :limit
-    """
-).bindparams(bindparam("since", type_=UtcDateTime()))
+_ITEMS_FTS = table("items_fts", column("rowid"))
+_FTS: ColumnClause[str] = literal_column("items_fts")
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,5 +34,11 @@ def shortlist(
     query = match_query(text_value)
     if query is None:
         return []
-    rows = session.execute(_SHORTLIST, {"query": query, "since": since, "limit": limit})
-    return [ShortlistEntry(*row) for row in rows]
+    statement = (
+        select(Item.id, Item.title, Item.summary)
+        .join(_ITEMS_FTS, _ITEMS_FTS.c.rowid == Item.id)
+        .where(_FTS.op("MATCH")(query), Item.deleted_at.is_(None), Item.created_at >= since)
+        .order_by(func.bm25(_FTS))
+        .limit(limit)
+    )
+    return [ShortlistEntry(*row) for row in session.execute(statement)]
