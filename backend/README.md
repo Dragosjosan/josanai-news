@@ -6,7 +6,7 @@ app.db.seed`. Run the API with `uv run uvicorn app.main:app --reload`.
 
 Before launch, schema changes edit `0001_initial_schema.py`. An existing
 database stamped `0001` needs to be backed up and rebuilt from that migration;
-running `upgrade head` alone will not add the comments tables.
+running `upgrade head` alone will not apply edits to the initial schema.
 
 Comments use `GET`/`POST /api/v1/items/{id}/comments` and `DELETE
 /api/v1/comments/{id}`. Anonymous posting is enabled by default. Set

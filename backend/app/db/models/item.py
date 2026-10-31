@@ -1,16 +1,10 @@
 from datetime import datetime
-from enum import StrEnum
 
-from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.account import Account
-from app.db.models.base import Base, UtcDateTime, string_enum, utc_now
-
-
-class LinkKind(StrEnum):
-    CORROBORATING = "corroborating"
-    RELATED = "related"
+from app.db.models.base import Base, UtcDateTime, utc_now
 
 
 class Item(Base):
@@ -32,18 +26,3 @@ class Item(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
     account: Mapped[Account | None] = relationship()
-    links: Mapped[list["ItemLink"]] = relationship(
-        order_by="ItemLink.id", cascade="all, delete-orphan"
-    )
-
-
-class ItemLink(Base):
-    __tablename__ = "item_links"
-    __table_args__ = (
-        UniqueConstraint("item_id", "kind", "url", name="uq_item_links_item_id_kind_url"),
-    )
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
-    kind: Mapped[LinkKind] = mapped_column(string_enum(LinkKind))
-    url: Mapped[str] = mapped_column(String(2048), index=True)

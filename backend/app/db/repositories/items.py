@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import select, update
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload
 
-from app.db.models import Item, ItemLink, LinkKind
+from app.db.models import Item
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +79,7 @@ def get_visible(session: Session, item_id: int) -> Item | None:
     statement = (
         select(Item)
         .where(Item.id == item_id, Item.deleted_at.is_(None))
-        .options(joinedload(Item.account), selectinload(Item.links))
+        .options(joinedload(Item.account))
     )
     return session.scalar(statement)
 
@@ -90,30 +90,3 @@ def get_visible_upvotes(session: Session, item_id: int) -> int | None:
 
 def add_upvotes(session: Session, item_id: int, delta: int) -> None:
     session.execute(update(Item).where(Item.id == item_id).values(upvotes=Item.upvotes + delta))
-
-
-def list_earlier(session: Session, item: Item) -> list[Item]:
-    related = [link.url for link in item.links if link.kind is LinkKind.RELATED]
-    if not related:
-        return []
-    statement = (
-        select(Item)
-        .where(Item.url.in_(related), Item.deleted_at.is_(None))
-        .order_by(Item.created_at, Item.id)
-    )
-    return list(session.scalars(statement))
-
-
-def list_later(session: Session, item: Item) -> list[Item]:
-    statement = (
-        select(Item)
-        .join(ItemLink, ItemLink.item_id == Item.id)
-        .where(
-            ItemLink.kind == LinkKind.RELATED,
-            ItemLink.url == item.url,
-            Item.deleted_at.is_(None),
-            Item.id != item.id,
-        )
-        .order_by(Item.created_at, Item.id)
-    )
-    return list(session.scalars(statement))

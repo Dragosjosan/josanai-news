@@ -12,8 +12,6 @@ from app.db.models import (
     AccountKind,
     Comment,
     Item,
-    ItemLink,
-    LinkKind,
     utc_now,
 )
 from app.services.identity import hash_password, hash_secret
@@ -29,8 +27,6 @@ class _SeedItem:
     score: int
     title: str
     url: str
-    corroborating: tuple[str, ...] = ()
-    related: tuple[int, ...] = ()
     label: str | None = None
     summary: str | None = None
 
@@ -48,8 +44,6 @@ SEED_ITEMS = (
         64,
         "Microsoft Agent Framework 1.2 adds durable multi-agent workflows",
         "https://learn.microsoft.com/agent-framework",
-        ("https://github.com/microsoft/agent-framework/releases",),
-        (15,),
         label="framework-watch",
         summary="Durable workflows let agents resume work after interruptions and coordinate multi-agent tasks.",
     ),
@@ -59,8 +53,6 @@ SEED_ITEMS = (
         41,
         "Phase 3 data on once-weekly efanesoctocog alfa in children under 6",
         "https://ashpublications.org/blood",
-        ("https://clinicaltrials.gov/study/NCT04759131",),
-        (11,),
     ),
     _SeedItem(
         3.2,
@@ -83,7 +75,6 @@ SEED_ITEMS = (
         33,
         "Hemophilia B gene therapy: 5-year follow-up shows sustained factor IX expression",
         "https://nejm.org",
-        ("https://clinicaltrials.gov/study/NCT03569891", "https://www.fda.gov"),
     ),
     _SeedItem(
         9.1,
@@ -221,18 +212,11 @@ def seed_demo(session: Session, now: datetime) -> bool:
                 summary=seed.summary,
                 upvotes=seed.score,
                 ip_hash=_fake_hash(f"ip:{seed.account}"),
-                links=[
-                    ItemLink(kind=LinkKind.CORROBORATING, url=url) for url in seed.corroborating
-                ],
                 created_at=now - timedelta(hours=seed.hours_ago),
             )
         )
     session.add_all(items)
     session.flush()
-
-    for item, seed in zip(items, SEED_ITEMS, strict=True):
-        for number in seed.related:
-            item.links.append(ItemLink(kind=LinkKind.RELATED, url=items[number - 1].url))
 
     _seed_comments(session, items, accounts, now)
 

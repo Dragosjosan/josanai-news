@@ -14,25 +14,10 @@ export type FeedItem = {
   viewer_vote: VoteDirection | null
 }
 
-export type SourceLink = {
-  url: string
-  domain: string
-}
-
-export type ItemRef = {
-  id: number
-  title: string
-  domain: string
-  created_at: string
-}
-
 export type ItemDetail = FeedItem & {
   source_name: string | null
   published_at: string | null
   primary_ref: string | null
-  corroborating: SourceLink[]
-  earlier: ItemRef[]
-  later: ItemRef[]
   viewer_reported: boolean
 }
 

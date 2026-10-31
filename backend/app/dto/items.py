@@ -53,8 +53,6 @@ class SubmitItemRequest(RequestModel):
     published_at: PublishedAt | None = None
     summary: Summary | None = None
     primary_ref: PrimaryRef | None = None
-    corroborating_urls: list[WebUrl] = Field(default_factory=list, max_length=10)
-    related_urls: list[WebUrl] = Field(default_factory=list, max_length=10)
 
     @field_validator("summary", mode="before")
     @classmethod
@@ -78,25 +76,10 @@ class ItemSummary(BaseModel):
     viewer_vote: VoteDirection | None
 
 
-class Link(BaseModel):
-    url: str
-    domain: str
-
-
-class ItemRef(BaseModel):
-    id: int
-    title: str
-    domain: str
-    created_at: datetime
-
-
 class ItemDetail(ItemSummary):
     source_name: str | None
     published_at: datetime | None
     primary_ref: str | None
-    corroborating: list[Link]
-    earlier: list[ItemRef]
-    later: list[ItemRef]
     viewer_reported: bool
 
 

@@ -64,25 +64,6 @@ def upgrade() -> None:
         batch_op.create_index("ix_items_created_at_id", ["created_at", "id"], unique=False)
 
     op.create_table(
-        "item_links",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("item_id", sa.Integer(), nullable=False),
-        sa.Column(
-            "kind",
-            sa.Enum("corroborating", "related", name="linkkind", native_enum=False, length=16),
-            nullable=False,
-        ),
-        sa.Column("url", sa.String(length=2048), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["item_id"], ["items.id"], name=op.f("fk_item_links_item_id_items")
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_item_links")),
-        sa.UniqueConstraint("item_id", "kind", "url", name="uq_item_links_item_id_kind_url"),
-    )
-    with op.batch_alter_table("item_links", schema=None) as batch_op:
-        batch_op.create_index(batch_op.f("ix_item_links_url"), ["url"], unique=False)
-
-    op.create_table(
         "votes",
         sa.Column("item_id", sa.Integer(), nullable=False),
         sa.Column("ip_hash", sa.String(length=64), nullable=False),
@@ -264,7 +245,6 @@ def downgrade() -> None:
         "comments",
         "submission_checks",
         "votes",
-        "item_links",
         "items",
         "sessions",
         "accounts",

@@ -9,8 +9,6 @@ from app.config import Settings
 from app.db.models import (
     CheckOutcome,
     Item,
-    ItemLink,
-    LinkKind,
     SubmissionCheck,
     utc_now,
 )
@@ -161,7 +159,6 @@ class PublishingService:
             published_at=request.published_at,
             summary=request.summary,
             primary_ref=request.primary_ref,
-            links=_links(request),
             created_at=self._clock(),
         )
         check.outcome = CheckOutcome.PUBLISHED
@@ -179,15 +176,6 @@ class PublishingService:
         created = item_repo.get_visible(self._session, item.id)
         assert created is not None
         return to_detail(self._session, created, voted=False)
-
-
-def _links(request: SubmitItemRequest) -> list[ItemLink]:
-    corroborating = dict.fromkeys(request.corroborating_urls)
-    related = dict.fromkeys(request.related_urls)
-    related.pop(request.url, None)
-    return [ItemLink(kind=LinkKind.CORROBORATING, url=url) for url in corroborating] + [
-        ItemLink(kind=LinkKind.RELATED, url=url) for url in related
-    ]
 
 
 def _record(check: SubmissionCheck, verdict: Verdict) -> None:

@@ -24,19 +24,9 @@ work.
 
 Everything below is subordinate to that. The pipeline is invisible. No confidence
 badges, no audit pages. What the reader sees is a title, a source, a timestamp,
-corroborating links, and related stories. A post by an account shows its
+an optional summary, votes, and comments. A post by an account shows its
 username, plus an optional `label`; an anonymous post shows no by-line. See
-"Labels".
-
-## What Makes This Different
-
-Two things, both reader-facing, neither of which requires explaining the machinery:
-
-1. **Corroborated sources.** Each item carries the independent sources that back it,
-   because the pipeline had to find them anyway to clear the publish gate.
-2. **Connections.** Items link to the earlier stories they update. In hemophilia
-   especially, the same trial gets reported five times over two years; the site
-   should show that thread rather than five orphan links.
+"Labels". Source verification stays inside the agents service.
 
 ## Architecture
 
@@ -258,7 +248,6 @@ news-api is the authority for every site rule, whoever the publisher is:
 - per-IP rate limits for anonymous submissions
 - items, comments and votes
 - admin delete of any item or comment
-- resolving `related_urls` to existing items, for Connections
 
 It also exposes `GET /health` for compose healthchecks and k8s probes.
 
@@ -543,13 +532,7 @@ ItemDetail = ItemSummary +
   source_name      str | null
   published_at     datetime | null     the source's own date
   primary_ref      str | null
-  corroborating    [Link]
-  earlier          [ItemRef]           stories this item updates (Connections)
-  later            [ItemRef]           stories that update this item
   viewer_reported  bool                by voter cookie
-
-Link     { url: str, domain: str }
-ItemRef  { id: int, title: str, domain: str, created_at: datetime }
 
 Comment
   id               int
@@ -573,11 +556,6 @@ Account
 The submitter's IP hash and voter id, and the owning account are stored but
 never returned. `domain` is computed from `url` when the item is
 read, not stored.
-
-`earlier` and `later` are resolved when the item is read, not when it is
-posted: a `related_urls` entry links up as soon as an item with exactly that
-URL exists. Corroborating and related links share one table,
-`item_links(item, kind, url)`. Deleted items drop out of both lists.
 
 ### Endpoints
 
@@ -628,9 +606,7 @@ POST /api/v1/items      X-API-Key: <key>   (optional; omit to post anonymously)
   "source_name":        str | null,     1–200
   "published_at":       datetime | null, at most 24 h in the future
   "summary":            str | null,     1–500, asserts nothing the source does not
-  "primary_ref":        str | null,     1–200: NCT id, DOI, FDA/EMA docket, arXiv id
-  "corroborating_urls": [str],          0–10
-  "related_urls":       [str]           0–10, connections to earlier coverage
+  "primary_ref":        str | null      1–200: NCT id, DOI, FDA/EMA docket, arXiv id
 }
 ```
 
@@ -790,8 +766,6 @@ shared across the boundary.
    - `harm` ≥ `JEV_HARMFUL_MIN` (default 0.8) → 422 `harmful_content`.
    - `duplicate` picks an earlier story with probability ≥ 0.85 → 409 with its
      id.
-   - Later, if wanted: Jev also linking an update to the earlier story. Until
-     then, Connections come only from `related_urls`.
    - Anything else is published. When Jev is unsure, the post goes through. The
      check keeps the feed clean and free of repeats; it does not judge subject
      or quality. Any subject is welcome, like Hacker News. Votes judge quality.
@@ -942,8 +916,8 @@ Internal to the `agents` service. Structure is MAF's business, not the site's.
    The rest of the run's candidates are left undecided and unrecorded, so a
    later run can pick them up. The editor extracts claims, matches each to a
    primary reference, and finds independent corroboration with **Exa**. It
-   writes a summary that asserts nothing beyond the sources and proposes
-   connections.
+   writes a summary that asserts nothing beyond the sources. Verification
+   evidence stays in `harvest.db`.
    - Exa `/search` finds corroborating and primary sources; `/contents` fetches
      full article text, so the editor reads the source rather than a snippet.
      Called over plain HTTP (httpx) behind a small client, with `exa-py`
@@ -981,8 +955,8 @@ ignored, with `reason` and `duplicate_of_id`.
      - `relation`: a `Choice` of `same` (the same event reported again), `update`
        (a new development on that story), or `different`.
    - **Decision:** skip as `similar_text` when `relation == same` and its
-     probability is ≥ 0.85. `update` proceeds to the editor, with the match as a
-     `related_urls` edge. Everything else proceeds as new.
+     probability is ≥ 0.85. `update` proceeds to the editor for verification.
+     Everything else proceeds as new.
    - Pin the model version (`jev-1.13.0`, not `jev-latest`), since thresholds are
      tuned against it. Store the probabilities on every decision.
    - TypeSafe's accuracy figures are self-reported and unreproduced, so the
@@ -1197,8 +1171,8 @@ boundary.
 
 **C. Receipts as a public page.** Per-story audit pages showing what the agents
 found, rejected, and corroborated. **Rejected by the user**: the reader does not
-care about the agent system. Sources and related stories survive from this idea;
-the pipeline tour does not.
+care about the agent system. Verification evidence stays inside the agents
+service.
 
 ## Recommended Approach
 

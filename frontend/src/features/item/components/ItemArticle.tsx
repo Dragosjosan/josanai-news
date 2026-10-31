@@ -6,8 +6,6 @@ import ExternalLink from '../../../components/ExternalLink/ExternalLink.tsx'
 import VoteArrow from '../../../components/VoteArrow/VoteArrow.tsx'
 import { useVote } from '../../../components/VoteArrow/useVote.ts'
 import { pluralize, timeAgo } from '../../../lib/format.ts'
-import ConnectionList from './ConnectionList.tsx'
-import LinkSection from './LinkSection.tsx'
 import './ItemArticle.css'
 
 function ItemArticle({ item }: { item: ItemDetail }) {
@@ -59,21 +57,6 @@ function ItemArticle({ item }: { item: ItemDetail }) {
             {item.summary}
           </p>
         )}
-
-        {item.corroborating.length > 0 && (
-          <LinkSection title="Verified against">
-            {item.corroborating.map((link) => (
-              <li key={link.url}>
-                <ExternalLink className="link-section-link" href={link.url}>
-                  {link.domain}
-                </ExternalLink>
-              </li>
-            ))}
-          </LinkSection>
-        )}
-
-        {item.earlier.length > 0 && <ConnectionList title="Updates" items={item.earlier} />}
-        {item.later.length > 0 && <ConnectionList title="Updated by" items={item.later} />}
       </div>
     </article>
   )
