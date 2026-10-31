@@ -95,7 +95,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("item_id", "ip_hash", name=op.f("pk_votes")),
     )
     with op.batch_alter_table("votes", schema=None) as batch_op:
-        batch_op.create_index("ix_votes_ip_hash_created_at", ["ip_hash", "created_at"], unique=False)
+        batch_op.create_index(
+            "ix_votes_ip_hash_created_at", ["ip_hash", "created_at"], unique=False
+        )
     op.create_table(
         "submission_checks",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -143,6 +145,77 @@ def upgrade() -> None:
             "ix_submission_checks_ip_hash_created_at", ["ip_hash", "created_at"], unique=False
         )
 
+    op.create_table(
+        "comments",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("item_id", sa.Integer(), nullable=False),
+        sa.Column("parent_id", sa.Integer(), nullable=True),
+        sa.Column("account_id", sa.Integer(), nullable=True),
+        sa.Column("voter_id", sa.String(length=64), nullable=False),
+        sa.Column("ip_hash", sa.String(length=64), nullable=False),
+        sa.Column("text", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.String(length=24), nullable=False),
+        sa.Column("deleted_at", sa.String(length=24), nullable=True),
+        sa.ForeignKeyConstraint(["item_id"], ["items.id"], name=op.f("fk_comments_item_id_items")),
+        sa.ForeignKeyConstraint(
+            ["parent_id"], ["comments.id"], name=op.f("fk_comments_parent_id_comments")
+        ),
+        sa.ForeignKeyConstraint(
+            ["account_id"], ["accounts.id"], name=op.f("fk_comments_account_id_accounts")
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_comments")),
+    )
+    with op.batch_alter_table("comments", schema=None) as batch_op:
+        batch_op.create_index(
+            "ix_comments_item_id_created_at_id", ["item_id", "created_at", "id"], unique=False
+        )
+
+    op.create_table(
+        "comment_checks",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("item_id", sa.Integer(), nullable=False),
+        sa.Column("parent_id", sa.Integer(), nullable=True),
+        sa.Column("account_id", sa.Integer(), nullable=True),
+        sa.Column("ip_hash", sa.String(length=64), nullable=False),
+        sa.Column("text", sa.Text(), nullable=False),
+        sa.Column(
+            "outcome",
+            sa.Enum(
+                "published",
+                "harmful",
+                "unavailable",
+                name="commentcheckoutcome",
+                native_enum=False,
+                length=16,
+            ),
+            nullable=False,
+        ),
+        sa.Column("harm_probability", sa.Float(), nullable=True),
+        sa.Column("model", sa.String(length=32), nullable=True),
+        sa.Column("comment_id", sa.Integer(), nullable=True),
+        sa.Column("created_at", sa.String(length=24), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["item_id"], ["items.id"], name=op.f("fk_comment_checks_item_id_items")
+        ),
+        sa.ForeignKeyConstraint(
+            ["parent_id"], ["comments.id"], name=op.f("fk_comment_checks_parent_id_comments")
+        ),
+        sa.ForeignKeyConstraint(
+            ["account_id"], ["accounts.id"], name=op.f("fk_comment_checks_account_id_accounts")
+        ),
+        sa.ForeignKeyConstraint(
+            ["comment_id"], ["comments.id"], name=op.f("fk_comment_checks_comment_id_comments")
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_comment_checks")),
+    )
+    with op.batch_alter_table("comment_checks", schema=None) as batch_op:
+        batch_op.create_index(
+            "ix_comment_checks_account_id_created_at", ["account_id", "created_at"], unique=False
+        )
+        batch_op.create_index(
+            "ix_comment_checks_ip_hash_created_at", ["ip_hash", "created_at"], unique=False
+        )
+
     _create_search_index()
 
 
@@ -187,6 +260,8 @@ def downgrade() -> None:
         op.execute(f"DROP TRIGGER IF EXISTS {trigger}")
     op.execute("DROP TABLE IF EXISTS items_fts")
     for table in (
+        "comment_checks",
+        "comments",
         "submission_checks",
         "votes",
         "item_links",

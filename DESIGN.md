@@ -325,10 +325,10 @@ config, without code or schema changes.
   daily cap is the agents service's own business. See "Open Publishing".
 - The admin can delete any item or comment (soft delete, kept for audit).
 - **Comments.** Threaded as on Hacker News (`parent_id`) and shown on the item
-  page, oldest first, with no comment voting unless the design export has it.
+  page, oldest first, with no comment voting.
   An account's comment shows its username; an anonymous comment shows no name.
-  Jev checks
-  every comment for harmful language. The writer can delete their comment, from
+  Comment labels remain open for discussion after Step 6 implementation.
+  Jev checks every comment for harmful language. The writer can delete their comment, from
   the same account or, when anonymous, the same browser (voter cookie); a
   deleted comment shows as "[deleted]" so the thread stays intact.
 - **Reports** ("flag" on Hacker News): anyone can report an item, once per voter
@@ -490,11 +490,16 @@ Every request resolves to one identity, in this order:
    logout. A password reset ends all of that account's sessions.
 3. **Anonymous.**
 
-Every request also carries the **voter cookie** (`voter`): a signed random id,
-set on the first write that needs it, one year. Together with the salted IP
-hash (`IP_HASH_SALT`; the raw IP is never stored) it identifies an anonymous
-visitor, and it dedupes reports for everyone. Votes are deduped by the IP hash
-alone, see "Votes".
+Every request can also carry the **voter cookie** (`voter`): a random id and
+issuance timestamp signed with HMAC-SHA256 using `NEWS_COOKIE_SECRET`. It is set
+on the first comment write that needs it, lasts one year and is HttpOnly,
+SameSite=Lax, `Path=/`, and Secure according to `NEWS_COOKIE_SECURE`. The
+signature and expiry are checked on the server; only a hash of the id is stored
+on comments. Set a private, stable cookie secret before deployment. Rotating it
+invalidates anonymous ownership cookies. The IP hash is used for rate limits,
+not comment ownership: two browsers sharing an IP cannot delete each other's
+comments. Reports will reuse this cookie in Step 7. Votes are deduped by the IP
+hash alone, see "Votes".
 
 In the tables below, "public" means anyone, subject to the switches; "agent"
 means a valid API key; "admin" means the admin's session.
@@ -507,6 +512,9 @@ there is one, and per IP hash for anonymous requests. Each limit is one indexed
 is no extra table or in-memory state. Submissions count `submission_checks`
 rows, which means only attempts that reached Jev, the expensive step. nginx
 `limit_req` on `/api` sits in front of all of them.
+
+Comments count `comment_checks` in the same way, including harmful-content
+rejections and Jev failures. Cookie changes cannot reset the anonymous limit.
 
 | Setting             | Default | Counts                                               |
 |---------------------|---------|------------------------------------------------------|
@@ -688,13 +696,15 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 ### Comments
 
 - `GET /items/{id}/comments` → `{ "comments": [Comment] }`, flat and oldest
-  first; the frontend builds the tree from `parent_id`. Deleted comments stay in
-  the list so threads keep their shape.
+  first, breaking ties by id; the frontend builds the tree from `parent_id`.
+  Deleted comments stay in the list with null text and author so threads keep
+  their shape. Item comment counts include only comments that are not deleted.
 - `POST /items/{id}/comments` (public; 401 `not_authenticated` when anonymous
   and `NEWS_COMMENT_REQUIRES_ACCOUNT` is on) with
   `{ "text": str, "parent_id": int | null }` → 201 `Comment`. `text` is
   1–5000 characters. Jev checks the text: 422 `harmful_content`, 503
-  `jev_unavailable`.
+  `jev_unavailable`. Missing, deleted or cross-item parents return 422
+  `parent_not_found`. Each moderation attempt is logged in `comment_checks`.
 - `DELETE /comments/{id}` (writer or admin) → 204. The writer is the same
   account, or for an anonymous comment the same voter cookie; anyone else gets
   403 `forbidden`. Deleting an already deleted comment is a 204 too.

@@ -75,6 +75,25 @@ export type LoginBody = {
   password: string
 }
 
+export type Comment = {
+  id: number
+  parent_id: number | null
+  author: string | null
+  text: string | null
+  created_at: string
+  deleted: boolean
+  can_delete: boolean
+}
+
+export type CommentThread = {
+  comments: Comment[]
+}
+
+export type SubmitCommentBody = {
+  text: string
+  parent_id: number | null
+}
+
 export type ErrorBody = {
   error: {
     code: string

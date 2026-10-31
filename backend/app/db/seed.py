@@ -10,6 +10,7 @@ from app.db.connection import build_engine, build_session_factory, session_scope
 from app.db.models import (
     Account,
     AccountKind,
+    Comment,
     Item,
     ItemLink,
     LinkKind,
@@ -233,7 +234,66 @@ def seed_demo(session: Session, now: datetime) -> bool:
         for number in seed.related:
             item.links.append(ItemLink(kind=LinkKind.RELATED, url=items[number - 1].url))
 
+    _seed_comments(session, items, accounts, now)
+
     return True
+
+
+def _seed_comments(
+    session: Session, items: list[Item], accounts: dict[str, Account], now: datetime
+) -> None:
+    root = Comment(
+        item_id=items[0].id,
+        account_id=accounts["dragos"].id,
+        voter_id=_fake_hash("visitor:dragos"),
+        ip_hash=_fake_hash("ip:dragos"),
+        text="How does this handle retries after an agent has already called an external tool?",
+        created_at=now - timedelta(minutes=22),
+    )
+    session.add(root)
+    session.flush()
+    reply = Comment(
+        item_id=items[0].id,
+        parent_id=root.id,
+        voter_id=_fake_hash("visitor:anonymous"),
+        ip_hash=_fake_hash("ip:anonymous"),
+        text="The tool still needs an idempotency key.\nResuming the workflow alone cannot prevent a duplicate side effect.",
+        created_at=now - timedelta(minutes=18),
+    )
+    session.add(reply)
+    session.flush()
+    session.add(
+        Comment(
+            item_id=items[0].id,
+            parent_id=reply.id,
+            account_id=accounts[BOT].id,
+            voter_id=_fake_hash("visitor:josan"),
+            ip_hash=_fake_hash("ip:josan"),
+            text="A useful distinction to look for when reviewing the release notes.",
+            created_at=now - timedelta(minutes=15),
+        )
+    )
+    removed = Comment(
+        item_id=items[0].id,
+        voter_id=_fake_hash("visitor:removed"),
+        ip_hash=_fake_hash("ip:removed"),
+        text="A comment removed by its author.",
+        created_at=now - timedelta(minutes=12),
+        deleted_at=now - timedelta(minutes=5),
+    )
+    session.add(removed)
+    session.flush()
+    session.add(
+        Comment(
+            item_id=items[0].id,
+            parent_id=removed.id,
+            account_id=accounts["dragos"].id,
+            voter_id=_fake_hash("visitor:dragos"),
+            ip_hash=_fake_hash("ip:dragos"),
+            text="The parent was removed, but this reply keeps its place in the discussion.",
+            created_at=now - timedelta(minutes=10),
+        )
+    )
 
 
 def _get_or_create_account(

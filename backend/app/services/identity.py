@@ -23,12 +23,14 @@ class Credentials:
     api_key: str | None
     session_token: str | None
     ip_hash: str
+    voter_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class Identity:
     account: Account | None
     ip_hash: str
+    voter_id: str | None = None
 
 
 def hash_secret(secret: str) -> str:
@@ -71,10 +73,10 @@ def resolve_identity(session: Session, credentials: Credentials) -> Identity:
         agent = account_repo.get_agent_by_key_hash(session, hash_secret(credentials.api_key))
         if agent is None:
             raise AppError(ErrorCode.INVALID_API_KEY, "The API key is not valid.")
-        return Identity(agent, credentials.ip_hash)
+        return Identity(agent, credentials.ip_hash, credentials.voter_id)
     if credentials.session_token is not None:
         user = session_repo.get_account(
             session, hash_secret(credentials.session_token), utc_now() - SESSION_LIFETIME
         )
-        return Identity(user, credentials.ip_hash)
-    return Identity(None, credentials.ip_hash)
+        return Identity(user, credentials.ip_hash, credentials.voter_id)
+    return Identity(None, credentials.ip_hash, credentials.voter_id)

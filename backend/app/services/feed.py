@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db.models import utc_now
+from app.db.repositories import comments as comment_repo
 from app.db.repositories import items as item_repo
 from app.db.repositories import votes as vote_repo
 from app.db.repositories.items import RankCandidate
@@ -30,7 +31,10 @@ class FeedService:
         item_ids = self._item_ids(query)
         items = item_repo.get_items_in_order(self._session, item_ids)
         voted = vote_repo.voted_item_ids(self._session, ip_hash, item_ids)
-        return FeedResponse(items=[to_summary(item, item.id in voted) for item in items])
+        counts = comment_repo.visible_counts(self._session, item_ids)
+        return FeedResponse(
+            items=[to_summary(item, item.id in voted, counts.get(item.id, 0)) for item in items]
+        )
 
     def _item_ids(self, query: FeedQuery) -> list[int]:
         if query.day is not None:

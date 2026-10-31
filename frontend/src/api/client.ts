@@ -69,7 +69,11 @@ export function putJson<T>(path: string, body: unknown): Promise<T> {
   return sendJson<T>('PUT', path, body)
 }
 
-async function sendJson<T>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {
+export function deleteJson(path: string): Promise<void> {
+  return sendJson<void>('DELETE', path)
+}
+
+async function sendJson<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     credentials: 'same-origin',

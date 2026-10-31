@@ -4,6 +4,7 @@ from rapidfuzz import fuzz
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.db.repositories import comments as comment_repo
 from app.db.repositories import items as item_repo
 from app.db.repositories import votes as vote_repo
 from app.db.repositories.items import SearchRow
@@ -60,8 +61,9 @@ class SearchService:
         item_ids = [row.id for _, row in scored[start : start + self._page_size]]
         items = item_repo.get_items_in_order(self._session, item_ids)
         voted = vote_repo.voted_item_ids(self._session, ip_hash, item_ids)
+        counts = comment_repo.visible_counts(self._session, item_ids)
         return SearchResponse(
-            items=[to_summary(item, item.id in voted) for item in items],
+            items=[to_summary(item, item.id in voted, counts.get(item.id, 0)) for item in items],
             page=query.page,
             has_more=len(scored) > start + self._page_size,
         )

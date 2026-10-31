@@ -25,6 +25,33 @@ class Verdict:
     duplicate_probability: float
 
 
+@dataclass(frozen=True, slots=True)
+class CommentVerdict:
+    model: str
+    harm_probability: float
+
+
+def judge_comment(client: JevClient, text: str) -> CommentVerdict:
+    decision = client.decide(
+        {"comment": {"text": text}},
+        {
+            "harm": Question(
+                type="noul",
+                instructions="Does the comment contain harmful language?",
+                criteria={
+                    "true": "Hate, harassment, threats, sexual content, self-harm or scam wording.",
+                    "false": "Normal discussion wording.",
+                },
+            )
+        },
+    )
+    harm = decision.answers.get("harm")
+    probability = harm.noul if harm is not None else None
+    if probability is None or not 0 <= probability <= 1:
+        raise JevUnavailableError("Unexpected Jev comment harm probability")
+    return CommentVerdict(decision.model, probability)
+
+
 def judge(
     client: JevClient,
     submission: Submission,

@@ -1,18 +1,22 @@
 from collections.abc import Iterator
+from dataclasses import replace
 from typing import Annotated, cast
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.clients.jev import JevClient
 from app.config import Settings
 from app.db.connection import SessionFactory
+from app.db.models import utc_now
 from app.services.auth import AuthService
+from app.services.comments import CommentService
 from app.services.feed import FeedService
 from app.services.identity import Credentials, hash_ip
 from app.services.items import ItemService
 from app.services.publishing import PublishingService
 from app.services.search import SearchService
+from app.services.visitor import VOTER_COOKIE, VOTER_LIFETIME, new_voter, read_voter
 from app.services.voting import VotingService
 
 API_KEY_HEADER = "X-API-Key"
@@ -39,6 +43,9 @@ def get_credentials(request: Request, settings: AppSettings) -> Credentials:
         api_key=request.headers.get(API_KEY_HEADER),
         session_token=request.cookies.get(SESSION_COOKIE),
         ip_hash=hash_ip(client_ip, settings.ip_hash_salt.get_secret_value()),
+        voter_id=read_voter(
+            request.cookies.get(VOTER_COOKIE), settings.cookie_secret.get_secret_value(), utc_now()
+        ),
     )
 
 
@@ -72,6 +79,12 @@ def get_publishing_service(
     )
 
 
+def get_comment_service(
+    request: Request, session: DatabaseSession, settings: AppSettings
+) -> CommentService:
+    return CommentService(session, settings, cast(JevClient, request.app.state.jev))
+
+
 RequestCredentials = Annotated[Credentials, Depends(get_credentials)]
 FeedServiceDep = Annotated[FeedService, Depends(get_feed_service)]
 PublishingServiceDep = Annotated[PublishingService, Depends(get_publishing_service)]
@@ -79,3 +92,25 @@ ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 VotingServiceDep = Annotated[VotingService, Depends(get_voting_service)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
+CommentServiceDep = Annotated[CommentService, Depends(get_comment_service)]
+
+
+def get_comment_credentials(
+    response: Response, credentials: RequestCredentials, settings: AppSettings
+) -> Credentials:
+    if credentials.voter_id is not None:
+        return credentials
+    token, voter_id = new_voter(settings.cookie_secret.get_secret_value(), utc_now())
+    response.set_cookie(
+        VOTER_COOKIE,
+        token,
+        max_age=int(VOTER_LIFETIME.total_seconds()),
+        path="/",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+    return replace(credentials, voter_id=voter_id)
+
+
+CommentWriterCredentials = Annotated[Credentials, Depends(get_comment_credentials)]
