@@ -67,3 +67,19 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.item-article-delete {
+  all: unset;
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.item-article-delete:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.item-article-delete:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
+}

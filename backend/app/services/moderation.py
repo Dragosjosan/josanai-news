@@ -39,8 +39,8 @@ def judge_comment(client: JevClient, text: str) -> CommentVerdict:
                 type="noul",
                 instructions="Does the comment contain harmful language?",
                 criteria={
-                    "true": "Hate, harassment, threats, sexual content, self-harm or scam wording.",
-                    "false": "Normal discussion wording.",
+                    "true": "Threats, self-harm or scam wording. Uncensored language is allowed.",
+                    "false": "Normal discussion wording, including swearing.",
                 },
             )
         },

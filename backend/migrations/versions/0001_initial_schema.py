@@ -19,7 +19,11 @@ def upgrade() -> None:
             sa.Enum("user", "agent", name="accountkind", native_enum=False, length=16),
             nullable=False,
         ),
-        sa.Column("is_admin", sa.Boolean(), nullable=False),
+        sa.Column(
+            "role",
+            sa.Enum("user", "admin", name="role", native_enum=False, length=16),
+            nullable=False,
+        ),
         sa.Column("password_hash", sa.String(length=255), nullable=True),
         sa.Column("api_key_hash", sa.String(length=64), nullable=True),
         sa.Column("created_at", sa.String(length=24), nullable=False),
@@ -90,7 +94,6 @@ def upgrade() -> None:
             "outcome",
             sa.Enum(
                 "published",
-                "harmful",
                 "duplicate",
                 "unavailable",
                 name="checkoutcome",
@@ -163,7 +166,6 @@ def upgrade() -> None:
             "outcome",
             sa.Enum(
                 "published",
-                "harmful",
                 "unavailable",
                 name="commentcheckoutcome",
                 native_enum=False,
@@ -196,6 +198,21 @@ def upgrade() -> None:
         batch_op.create_index(
             "ix_comment_checks_ip_hash_created_at", ["ip_hash", "created_at"], unique=False
         )
+
+    op.create_table(
+        "reports",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("item_id", sa.Integer(), nullable=False),
+        sa.Column("comment_id", sa.Integer(), nullable=True),
+        sa.Column("harm_probability", sa.Float(), nullable=True),
+        sa.Column("created_at", sa.String(length=24), nullable=False),
+        sa.Column("hidden_at", sa.String(length=24), nullable=True),
+        sa.ForeignKeyConstraint(["item_id"], ["items.id"], name=op.f("fk_reports_item_id_items")),
+        sa.ForeignKeyConstraint(
+            ["comment_id"], ["comments.id"], name=op.f("fk_reports_comment_id_comments")
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_reports")),
+    )
 
     _create_search_index()
 
@@ -241,6 +258,7 @@ def downgrade() -> None:
         op.execute(f"DROP TRIGGER IF EXISTS {trigger}")
     op.execute("DROP TABLE IF EXISTS items_fts")
     for table in (
+        "reports",
         "comment_checks",
         "comments",
         "submission_checks",

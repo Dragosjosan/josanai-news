@@ -1,14 +1,16 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import (
+    AdminServiceDep,
     AppSettings,
     FeedServiceDep,
     ItemServiceDep,
     PublishingServiceDep,
     RequestCredentials,
     VotingServiceDep,
+    require_admin,
 )
 from app.dto.items import (
     FeedQuery,
@@ -47,6 +49,16 @@ def submit_item(
 @router.get("/{item_id}")
 def get_item(item_id: int, credentials: RequestCredentials, items: ItemServiceDep) -> ItemDetail:
     return items.get(item_id, credentials.ip_hash)
+
+
+@router.delete(
+    "/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_admin)],
+)
+def delete_item(item_id: int, admin: AdminServiceDep) -> Response:
+    admin.delete_item(item_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/{item_id}/vote")

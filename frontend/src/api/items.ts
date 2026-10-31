@@ -1,4 +1,4 @@
-import { getJson, postJson, putJson } from './client.ts'
+import { deleteJson, getJson, postJson, putJson } from './client.ts'
 import type { FeedItem, ItemDetail, SubmitItemBody, VoteResult } from './types.ts'
 
 export function submitItem(body: SubmitItemBody): Promise<FeedItem> {
@@ -7,6 +7,10 @@ export function submitItem(body: SubmitItemBody): Promise<FeedItem> {
 
 export function fetchItem(id: number, signal?: AbortSignal): Promise<ItemDetail> {
   return getJson<ItemDetail>(`/items/${id}`, {}, signal)
+}
+
+export function deleteItem(id: number): Promise<void> {
+  return deleteJson(`/items/${id}`)
 }
 
 export function voteItem(id: number, direction: 'up' | 'none'): Promise<VoteResult> {

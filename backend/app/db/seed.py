@@ -12,6 +12,8 @@ from app.db.models import (
     AccountKind,
     Comment,
     Item,
+    Report,
+    Role,
     utc_now,
 )
 from app.services.identity import hash_password, hash_secret
@@ -219,6 +221,7 @@ def seed_demo(session: Session, now: datetime) -> bool:
     session.flush()
 
     _seed_comments(session, items, accounts, now)
+    _seed_reports(session, items, now)
 
     return True
 
@@ -280,6 +283,33 @@ def _seed_comments(
     )
 
 
+def _seed_reports(session: Session, items: list[Item], now: datetime) -> None:
+    comment = session.scalar(
+        select(Comment).where(Comment.item_id == items[0].id, Comment.parent_id.is_(None))
+    )
+    assert comment is not None
+    session.add_all(
+        [
+            Report(
+                item_id=items[1].id,
+                harm_probability=0.62,
+                created_at=now - timedelta(minutes=30),
+            ),
+            Report(
+                item_id=items[0].id,
+                comment_id=comment.id,
+                harm_probability=0.55,
+                created_at=now - timedelta(minutes=20),
+            ),
+            Report(
+                item_id=items[2].id,
+                harm_probability=None,
+                created_at=now - timedelta(minutes=10),
+            ),
+        ]
+    )
+
+
 def _get_or_create_account(
     session: Session, username: str, kind: AccountKind, admin: bool
 ) -> Account:
@@ -288,7 +318,7 @@ def _get_or_create_account(
         account = Account(
             username=username,
             kind=kind,
-            is_admin=admin,
+            role=Role.ADMIN if admin else Role.USER,
             password_hash=hash_password(f"dev-password-{username}")
             if kind is AccountKind.USER
             else None,

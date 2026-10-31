@@ -14,6 +14,14 @@ Comments use `GET`/`POST /api/v1/items/{id}/comments` and `DELETE
 `NEWS_COMMENT_PER_HOUR` defaults to 30 moderation attempts per account or
 anonymous IP hash, including rejected and unavailable checks.
 
+Create the first admin with `uv run python -m app.cli create-admin <username>`.
+Admins can make other accounts admins through the API; only `uv run python -m
+app.cli remove-admin <username>` takes the role away. Jev files a report on
+anything published with a harm score of at least `NEWS_JEV_REPORT_MIN` (default
+0.5), and on anything published while Jev was unavailable or
+`NEWS_JEV_API_KEY` was missing. Jev never blocks a post or comment for harm; the
+admin takes it down.
+
 Set `NEWS_COOKIE_SECRET` to a private, stable random value for deployment. It
 signs the one-year anonymous ownership cookie; changing it invalidates those
 cookies. Only hashed visitor ids and IP addresses are stored. Keep

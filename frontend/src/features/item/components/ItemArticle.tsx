@@ -1,14 +1,17 @@
 import { useLocation } from 'react-router'
 import type { ItemDetail } from '../../../api/types.ts'
+import { useAuth } from '../../../app/authContext.ts'
 import DisclosureToggle from '../../../components/Disclosure/DisclosureToggle.tsx'
 import { useDisclosure } from '../../../components/Disclosure/useDisclosure.ts'
 import ExternalLink from '../../../components/ExternalLink/ExternalLink.tsx'
 import VoteArrow from '../../../components/VoteArrow/VoteArrow.tsx'
 import { useVote } from '../../../components/VoteArrow/useVote.ts'
 import { pluralize, timeAgo } from '../../../lib/format.ts'
+import DeleteItemButton from './DeleteItemButton.tsx'
 import './ItemArticle.css'
 
 function ItemArticle({ item }: { item: ItemDetail }) {
+  const { account } = useAuth()
   const vote = useVote(item)
   const { hash } = useLocation()
   const summary = useDisclosure(hash === '#summary')
@@ -50,6 +53,7 @@ function ItemArticle({ item }: { item: ItemDetail }) {
           )}
           <span className="item-article-separator" aria-hidden="true">|</span>
           <span>{item.comment_count === 0 ? 'discuss' : pluralize(item.comment_count, 'comment')}</span>
+          {account?.role === 'admin' && <DeleteItemButton id={item.id} />}
         </div>
 
         {item.summary && (

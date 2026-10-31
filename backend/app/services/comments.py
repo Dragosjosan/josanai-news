@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.clients.jev import JevClient, JevUnavailableError
 from app.config import Settings
-from app.db.models import Comment, CommentCheck, CommentCheckOutcome, utc_now
+from app.db.models import Comment, CommentCheck, CommentCheckOutcome, Role, utc_now
 from app.db.repositories import comments as comment_repo
 from app.db.repositories import items as item_repo
 from app.dto.comments import CommentResponse, SubmitCommentRequest, ThreadResponse
@@ -13,6 +13,7 @@ from app.errors import AppError, ErrorCode
 from app.services.identity import Credentials, Identity, resolve_identity
 from app.services.moderation import judge_comment
 from app.services.rate_limits import RATE_WINDOW, check_rate
+from app.services.reports import file_report
 
 
 class CommentService:
@@ -64,11 +65,18 @@ class CommentService:
             text=request.text,
             created_at=self._clock(),
         )
-        check.outcome = CommentCheckOutcome.PUBLISHED
         self._session.add(comment)
         self._session.flush()
         check.comment_id = comment.id
         self._session.add(check)
+        file_report(
+            self._session,
+            self._settings,
+            item_id,
+            comment.id,
+            check.harm_probability,
+            self._clock(),
+        )
         self._session.commit()
         created = comment_repo.get(self._session, comment.id)
         assert created is not None
@@ -122,30 +130,18 @@ class CommentService:
         )
         try:
             verdict = judge_comment(self._jev, request.text)
-        except JevUnavailableError as error:
+        except JevUnavailableError:
             check.outcome = CommentCheckOutcome.UNAVAILABLE
-            self._save_check(check)
-            raise AppError(
-                ErrorCode.JEV_UNAVAILABLE,
-                "The moderation check is unavailable. Try again later.",
-                retry_after=self._settings.jev_retry_after_seconds,
-            ) from error
+            return check
         check.model = verdict.model
         check.harm_probability = verdict.harm_probability
-        if verdict.harm_probability >= self._settings.jev_harmful_min:
-            check.outcome = CommentCheckOutcome.HARMFUL
-            self._save_check(check)
-            raise AppError(ErrorCode.HARMFUL_CONTENT, "The comment contains harmful language.")
+        check.outcome = CommentCheckOutcome.PUBLISHED
         return check
-
-    def _save_check(self, check: CommentCheck) -> None:
-        self._session.add(check)
-        self._session.commit()
 
 
 def _can_delete(comment: Comment, identity: Identity) -> bool:
     if identity.account is not None and (
-        identity.account.is_admin or comment.account_id == identity.account.id
+        identity.account.role is Role.ADMIN or comment.account_id == identity.account.id
     ):
         return True
     return (

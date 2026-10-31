@@ -18,7 +18,6 @@ export type ItemDetail = FeedItem & {
   source_name: string | null
   published_at: string | null
   primary_ref: string | null
-  viewer_reported: boolean
 }
 
 export type VoteResult = {
@@ -51,7 +50,7 @@ export type Account = {
   id: number
   username: string
   kind: 'user' | 'agent'
-  is_admin: boolean
+  role: 'user' | 'admin'
   created_at: string
 }
 
@@ -77,6 +76,24 @@ export type CommentThread = {
 export type SubmitCommentBody = {
   text: string
   parent_id: number | null
+}
+
+export type ReviewReport = {
+  id: number
+  item: FeedItem
+  comment: { id: number; author: string | null; text: string } | null
+  harm_probability: number | null
+  created_at: string
+}
+
+export type ReportList = {
+  reports: ReviewReport[]
+}
+
+export type BulkDeleteBy = 'submitter' | 'account'
+
+export type BulkDeleteResult = {
+  deleted: number
 }
 
 export type ErrorBody = {

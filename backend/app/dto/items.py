@@ -80,7 +80,6 @@ class ItemDetail(ItemSummary):
     source_name: str | None
     published_at: datetime | None
     primary_ref: str | None
-    viewer_reported: bool
 
 
 class FeedResponse(BaseModel):

@@ -106,7 +106,6 @@ Summary = Annotated[
 CommentText = Annotated[
     str, BeforeValidator(clean_multiline), StringConstraints(min_length=1, max_length=5000)
 ]
-FlagReason = Annotated[str, BeforeValidator(clean_line), StringConstraints(max_length=200)]
 SearchText = Annotated[str, BeforeValidator(clean_line), StringConstraints(max_length=200)]
 Label = Annotated[str, BeforeValidator(clean_label), StringConstraints(min_length=1, max_length=40)]
 Username = Annotated[

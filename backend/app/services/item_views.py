@@ -30,5 +30,4 @@ def to_detail(session: Session, item: Item, voted: bool) -> ItemDetail:
         source_name=item.source_name,
         published_at=item.published_at,
         primary_ref=item.primary_ref,
-        viewer_reported=False,
     )

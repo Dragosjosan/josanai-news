@@ -5,6 +5,7 @@ export const paths = {
   search: '/search',
   submit: '/submit',
   login: '/login',
+  admin: '/admin',
   item: '/item/:id',
 } as const
 

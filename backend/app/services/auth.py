@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models import Account, AccountKind, UserSession
+from app.db.models import Account, AccountKind, Role, UserSession
 from app.db.repositories import accounts as account_repo
 from app.db.repositories import sessions as session_repo
 from app.dto.accounts import AccountResponse, LoginRequest, SignupRequest
@@ -36,7 +36,7 @@ def to_response(account: Account) -> AccountResponse:
         id=account.id,
         username=account.username,
         kind=account.kind.value,
-        is_admin=account.is_admin,
+        role=account.role.value,
         created_at=account.created_at,
     )
 
@@ -46,13 +46,13 @@ def create_account(
     kind: AccountKind,
     username: str,
     password: str | None,
-    is_admin: bool = False,
+    role: Role = Role.USER,
 ) -> tuple[Account, str | None]:
     api_key = new_secret() if kind is AccountKind.AGENT else None
     account = Account(
         username=username.lower(),
         kind=kind,
-        is_admin=is_admin,
+        role=role,
         password_hash=hash_password(password) if password is not None else None,
         api_key_hash=hash_secret(api_key) if api_key is not None else None,
     )

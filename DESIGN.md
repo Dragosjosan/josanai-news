@@ -124,8 +124,8 @@ news/
 **backend/**
 ```
 app/
-  main.py  config.py  cli.py          cli: create-admin, create-user, create-agent,
-                                      rotate-key, reset-password
+  main.py  config.py  cli.py          cli: create-admin, remove-admin, create-user,
+                                      create-agent, rotate-key, reset-password
   api/router.py  api/dependencies.py  db session, current user, API-key auth
   api/routes/                         controllers: items comments votes search
                                       auth accounts admin health
@@ -242,9 +242,9 @@ pydantic-settings, Alembic in `migrations/`, uv. Sync SQLAlchemy 2.0 like level8
 on SQLite. Owns the `news` database. Plain and boring by design.
 
 news-api is the authority for every site rule, whoever the publisher is:
-- accounts (one of them the admin), sessions, and API keys for agents
+- accounts (some of them admins), sessions, and API keys for agents
 - the account switches (see "Accounts and switches")
-- the Jev check on every submission: harmful language and duplicate stories
+- the Jev check on every submission: reports on harmful language, rejects duplicate stories
 - per-IP rate limits for anonymous submissions
 - items, comments and votes
 - admin delete of any item or comment
@@ -283,8 +283,8 @@ people post with their own agents, so accounts are built now and switched on in
 config, without code or schema changes.
 
 - **Anonymous by default.** If you can post without an account, you can also
-  comment, vote and report without one. Every row a visitor writes (item,
-  comment, vote, report) has an optional `account_id`: empty when anonymous,
+  comment and vote without one. Every row a visitor writes (item, comment,
+  vote) has an optional `account_id`: empty when anonymous,
   filled when an account wrote it. The anonymous traces (IP hash, voter cookie)
   are stored either way.
 - **Two kinds of account**, told apart by `accounts.kind`:
@@ -295,9 +295,16 @@ config, without code or schema changes.
   - `agent`: a program. Sends `X-API-Key`. The key is random, shown once, and
     only its SHA-256 hash is stored, so the database alone cannot be used to
     post.
-  One user is the admin (`is_admin`), created by the CLI. Usernames are stored
-  lowercase. Someone running several agents can use one agent account and send
-  a different `label` per post.
+  Usernames are stored lowercase. Someone running several agents can use one
+  agent account and send a different `label` per post.
+- **Roles.** `accounts.role` is `user` or `admin`. `kind` says how an account
+  logs in; `role` says what it may do. The first admin is created on the server
+  with the `create-admin` CLI command. After that, any admin can make another
+  account an admin, user or agent, with `PUT /admin/accounts/{username}/admin`.
+  Taking the role away is CLI only (`remove-admin`), so a stolen admin session
+  cannot lock out the other admins, and the server can always recover. An agent
+  that reads untrusted content, such as a scraper, is never made an admin:
+  injected text could then delete posts.
 - Signup has a honeypot field against bots. Signup and login have no rate limit
   of their own; nginx `limit_req` on `/api` covers floods.
 - **Switches** are backend settings. The frontend ignores them at first.
@@ -306,7 +313,7 @@ config, without code or schema changes.
   |----------------------------------|---------|--------------------------------------------------|
   | `NEWS_ACCOUNTS_ENABLED`          | off     | `POST /auth/signup` works, for users and agents. Off, it is 404 and accounts exist only through the CLI. Login always works. |
   | `NEWS_POST_REQUIRES_ACCOUNT`     | off     | `POST /items` needs an API key or a session; anonymous gets 401 `not_authenticated`. |
-  | `NEWS_COMMENT_REQUIRES_ACCOUNT`  | off     | The same for comments and reports.               |
+  | `NEWS_COMMENT_REQUIRES_ACCOUNT`  | off     | The same for comments.                           |
 
   Voting has no switch and stays anonymous. news.josan.ai launches with all
   three off. Every switch is tested on and off.
@@ -317,11 +324,12 @@ config, without code or schema changes.
   page, oldest first, with no comment voting.
   An account's comment shows its username; an anonymous comment shows no name.
   Comment labels remain open for discussion after Step 6 implementation.
-  Jev checks every comment for harmful language. The writer can delete their comment, from
+  Jev checks every comment and reports harmful language. The writer can delete their comment, from
   the same account or, when anonymous, the same browser (voter cookie); a
   deleted comment shows as "[deleted]" so the thread stays intact.
-- **Reports** ("flag" on Hacker News): anyone can report an item, once per voter
-  cookie. Reports go to the admin's review list.
+- **Reports** come only from Jev; nobody reports from outside. A post or comment
+  Jev finds suspicious is published and linked to a report in the admin's
+  review list. See "Reports and admin".
 - **Items show** the title, domain, age, score and comment count, like Hacker
   News. The by-line is the account's username and label, or nothing for an
   anonymous post. Titles are the source's own title, lightly cleaned, never
@@ -361,7 +369,7 @@ config, without code or schema changes.
   written to `runs.stats`, so spend is visible per run.
 - **Privacy:** a short privacy page (session cookie, voter cookie, hashed IPs) and
   account deletion on request, via the admin. Deletion anonymizes the account
-  (username → `[deleted]`, password and sessions removed). Rows are kept; see
+  (username → `deleted-<id>`, password, API key and sessions removed). Rows are kept; see
   "We save everything".
 - **Secrets:** `/etc/news/.env` on the VPS, Kubernetes Secrets later (keys for
   the LLM providers, Exa, TypeSafe and X, plus the bot API key and the session
@@ -427,8 +435,8 @@ it back through the same API.
 
 **Accepted risk.** Titles and summaries are part of what Jev reads, so a
 submission can be written to talk Jev into "not harmful". Jev only returns typed
-choices, so the worst case is a harmful item getting through, and reports and
-admin delete cover that.
+choices, so the worst case is a harmful item that gets no report, and admin
+delete covers that.
 
 ### Errors
 
@@ -459,11 +467,9 @@ and 500s, uses one body:
 | 415    | `unsupported_media_type`                 | A write without `application/json`                |
 | 422    | `validation_error`                       | Body or query fails validation; `details.fields`  |
 | 422    | `unsupported_contract_version`           | `contract_version` is not `"1"`                   |
-| 422    | `harmful_content`                        | Jev: harmful language, see "The check: Jev"       |
 | 422    | `parent_not_found`                       | Reply to a comment that is missing, deleted, or on another item |
 | 429    | `rate_limited`                           | `Retry-After` header set, also `details.retry_after` |
 | 500    | `internal_error`                         | Logged with a request id, returned in `details`   |
-| 503    | `jev_unavailable`                        | `Retry-After` header set                          |
 
 `validation_error` details: `{ "fields": [{ "loc": [str | int], "message": str }] }`.
 
@@ -473,11 +479,17 @@ Every request resolves to one identity, in this order:
 
 1. **API key** (`X-API-Key`): an agent account. A key that does not match is a
    401 `invalid_api_key`, never a fallback to anonymous.
-2. **Session cookie** (`session`): a user account, or the admin. HttpOnly,
+2. **Session cookie** (`session`): a user account. HttpOnly,
    `Secure` (`NEWS_COOKIE_SECURE`, on by default), `SameSite=Lax`, `Path=/`,
    30 days. The token is random, stored hashed in `sessions`, and removed on
    logout. A password reset ends all of that account's sessions.
 3. **Anonymous.**
+
+The resolved identity is the principal: all permission checks use it, and the
+role is read from the database on every request, so a change applies at once.
+Role checks are a route dependency (`require_admin`), set on the whole `/admin`
+router so a new endpoint cannot forget it. Checks that need the row, such as
+"writer or admin", stay in the service.
 
 Every request can also carry the **voter cookie** (`voter`): a random id and
 issuance timestamp signed with HMAC-SHA256 using `NEWS_COOKIE_SECRET`. It is set
@@ -487,11 +499,11 @@ signature and expiry are checked on the server; only a hash of the id is stored
 on comments. Set a private, stable cookie secret before deployment. Rotating it
 invalidates anonymous ownership cookies. The IP hash is used for rate limits,
 not comment ownership: two browsers sharing an IP cannot delete each other's
-comments. Reports will reuse this cookie in Step 7. Votes are deduped by the IP
-hash alone, see "Votes".
+comments. Votes are deduped by the IP hash alone, see "Votes".
 
 In the tables below, "public" means anyone, subject to the switches; "agent"
-means a valid API key; "admin" means the admin's session.
+means a valid API key; "admin" means an account with the `admin` role, by
+session or API key.
 
 ### Rate limits
 
@@ -502,15 +514,14 @@ is no extra table or in-memory state. Submissions count `submission_checks`
 rows, which means only attempts that reached Jev, the expensive step. nginx
 `limit_req` on `/api` sits in front of all of them.
 
-Comments count `comment_checks` in the same way, including harmful-content
-rejections and Jev failures. Cookie changes cannot reset the anonymous limit.
+Comments count `comment_checks` in the same way, including Jev failures.
+Cookie changes cannot reset the anonymous limit.
 
 | Setting             | Default | Counts                                               |
 |---------------------|---------|------------------------------------------------------|
 | `SUBMIT_PER_HOUR`   | 10      | `POST /items`, every attempt. Our agent posts at most 10 a day, well below it |
 | `VOTE_PER_HOUR`     | 120     | `PUT /items/{id}/vote`                               |
 | `COMMENT_PER_HOUR`  | 30      | `POST /items/{id}/comments`                          |
-| `REPORT_PER_HOUR`   | 20      | `PUT /items/{id}/report`                             |
 
 ### Shapes
 
@@ -532,7 +543,6 @@ ItemDetail = ItemSummary +
   source_name      str | null
   published_at     datetime | null     the source's own date
   primary_ref      str | null
-  viewer_reported  bool                by voter cookie
 
 Comment
   id               int
@@ -543,13 +553,13 @@ Comment
   created_at       datetime
   deleted          bool
   can_delete       bool                viewer wrote it (account or voter cookie),
-                                       or is the admin
+                                       or is an admin
 
 Account
   id               int
   username         str
   kind             "user" | "agent"
-  is_admin         bool
+  role             "user" | "admin"
   created_at       datetime
 ```
 
@@ -567,8 +577,6 @@ read, not stored.
 | GET    | `/items/{id}`                      | public           | Item page                      |
 | DELETE | `/items/{id}`                      | admin            | Soft delete                    |
 | PUT    | `/items/{id}/vote`                 | public           | Upvote or retract              |
-| PUT    | `/items/{id}/report`               | public           | Report                         |
-| DELETE | `/items/{id}/report`               | public           | Remove your report             |
 | GET    | `/items/{id}/comments`             | public           | Thread                         |
 | POST   | `/items/{id}/comments`             | public           | Comment or reply               |
 | DELETE | `/comments/{id}`                   | writer or admin  | Soft delete                    |
@@ -580,13 +588,14 @@ read, not stored.
 | GET    | `/auth/me`                         | public           | Current account or null        |
 | POST   | `/auth/rotate-key`                 | agent            | New API key, old one stops     |
 | GET    | `/admin/reports`                   | admin            | Review list                    |
-| POST   | `/admin/reports/{item_id}/resolve` | admin            | Dismiss or delete              |
+| POST   | `/admin/reports/{id}/hide`         | admin            | Hide a report                  |
 | POST   | `/admin/items/bulk-delete`         | admin            | Delete by submitter            |
 | DELETE | `/admin/accounts/{username}`       | admin            | Anonymize an account           |
+| PUT    | `/admin/accounts/{username}/admin` | admin            | Make an account an admin       |
 
-"switch" means the endpoint is 404 unless `NEWS_ACCOUNTS_ENABLED` is on. Without
-a valid session, the admin endpoints return 401 `not_authenticated`, and 403
-`forbidden` to non-admins.
+"switch" means the endpoint is 404 unless `NEWS_ACCOUNTS_ENABLED` is on.
+Anonymous callers get 401 `not_authenticated` from the admin endpoints, and
+non-admins get 403 `forbidden`.
 
 ### The Contract: `POST /items`
 
@@ -626,7 +635,7 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 3. Rate limit → 429.
 4. Label from an anonymous request → 422 `validation_error`.
 5. Exact URL → 409 `duplicate`, without calling Jev.
-6. Jev → 503 `jev_unavailable`, 422 `harmful_content`, 409 `duplicate`.
+6. Jev → 409 `duplicate`.
 7. Insert, with the Jev decision in `submission_checks`.
 
 **Responses.**
@@ -641,7 +650,6 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
                    posted again.
 422  see the order of checks
 429  rate_limited
-503  jev_unavailable
 ```
 
 ### Reading
@@ -678,8 +686,8 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 - `POST /items/{id}/comments` (public; 401 `not_authenticated` when anonymous
   and `NEWS_COMMENT_REQUIRES_ACCOUNT` is on) with
   `{ "text": str, "parent_id": int | null }` → 201 `Comment`. `text` is
-  1–5000 characters. Jev checks the text: 422 `harmful_content`, 503
-  `jev_unavailable`. Missing, deleted or cross-item parents return 422
+  1–5000 characters. Jev checks the text and files a report when it looks
+  harmful. Missing, deleted or cross-item parents return 422
   `parent_not_found`. Each moderation attempt is logged in `comment_checks`.
 - `DELETE /comments/{id}` (writer or admin) → 204. The writer is the same
   account, or for an anonymous comment the same voter cookie; anyone else gets
@@ -713,29 +721,33 @@ the switch is on.
 
 ### Reports and admin
 
-A report ("flag" on Hacker News) only marks an item. It stays visible until the
-admin decides.
+A report marks a published post or comment for the admin. It stays visible until
+the admin takes it down. Reports are created only inside news-api, when Jev's
+harm score for something being published is at least `JEV_REPORT_MIN` (default
+0.5), or when Jev was unavailable. Jev never blocks anything for harm. There is
+no endpoint for creating a report. A row has `item_id`, an optional `comment_id`,
+`harm_probability` (empty when Jev was unavailable), `created_at` and
+`hidden_at`.
 
-- `PUT /items/{id}/report` (public; 401 when anonymous and
-  `NEWS_COMMENT_REQUIRES_ACCOUNT` is on) with `{ "reason": str | null }`
-  (0–200) → 204. One report per voter cookie per item; reporting again updates
-  the reason. Resolving sets `resolved_at` on the item's open reports.
-- `DELETE /items/{id}/report` → 204.
-- `GET /admin/reports?status=open|resolved` →
-  `{ "reports": [{ "item": ItemSummary, "report_count": int, "reasons": [str],
-  "last_reported_at": datetime }] }`, newest report first. `report_count`
-  counts distinct IP hashes, so clearing cookies does not inflate it. `status`
-  defaults to `open`. A new report on a resolved item opens it again.
-- `POST /admin/reports/{item_id}/resolve` with
-  `{ "action": "dismiss" | "delete" }` → 204. `delete` soft-deletes the item.
-- `DELETE /items/{id}` (admin) → 204. Idempotent.
+- `GET /admin/reports` → `{ "reports": [{ "id": int, "item": ItemSummary,
+  "comment": { "id": int, "author": str | null, "text": str } | null,
+  "harm_probability": float | null, "created_at": datetime }] }`, newest first. Hidden
+  reports and reports on deleted posts or comments are left out.
+- `POST /admin/reports/{id}/hide` → 204. Idempotent. Sets `hidden_at`; the row is
+  kept.
+- `DELETE /items/{id}` (admin) → 204. Idempotent. To delete a reported comment,
+  the admin uses `DELETE /comments/{id}`.
 - `POST /admin/items/bulk-delete` with
   `{ "item_id": int, "by": "submitter" | "account", "dry_run": bool }` →
   200 `{ "deleted": int }`. Deletes every item that shares the given item's
   submitter IP hash, or its account, so the hash never leaves the
   server. `dry_run` only counts.
 - `DELETE /admin/accounts/{username}` → 204. Anonymizes the account as in
-  "Privacy". The admin account cannot anonymize itself.
+  "Privacy". An account with the `admin` role is refused with 403 `forbidden`;
+  run `remove-admin` on the server first.
+- `PUT /admin/accounts/{username}/admin` → 200 `Account`, for users and agents.
+  Idempotent. 404 `not_found` when the account does not exist. Nothing over the
+  API takes the role away.
 
 ## Open Publishing
 
@@ -763,15 +775,16 @@ shared across the boundary.
    - `duplicate`: `choice` over the shortlist ids plus `"none"`. Which earlier
      story reports the same event? Asked only when the shortlist is not empty.
 4. **Decision.** In this order, the first one that applies wins.
-   - `harm` ≥ `JEV_HARMFUL_MIN` (default 0.8) → 422 `harmful_content`.
    - `duplicate` picks an earlier story with probability ≥ 0.85 → 409 with its
      id.
+   - `harm` ≥ `JEV_REPORT_MIN` (default 0.5) → published, with a report for the
+     admin. See "Reports and admin".
    - Anything else is published. When Jev is unsure, the post goes through. The
-     check keeps the feed clean and free of repeats; it does not judge subject
+     check keeps the feed free of repeats; it does not judge subject
      or quality. Any subject is welcome, like Hacker News. Votes judge quality.
-5. **Jev unavailable** → 503 with `Retry-After`. There is no fallback, so an
-   outage never lets unchecked posts in. A missing `NEWS_JEV_API_KEY` counts as
-   unavailable.
+5. **Jev unavailable** → published, with a report for the admin and no score.
+   Only the exact-URL check runs, so a same-story duplicate can get through. A
+   missing `NEWS_JEV_API_KEY` counts as unavailable.
 
 The call is `POST https://api.typesafe.ai/v1/systemone` with
 `Authorization: Bearer <NEWS_JEV_API_KEY>` and `{ model, state, questions }`;
@@ -782,7 +795,7 @@ kept in sync with `items` by triggers created in the migration.
 **Harmful language** means: hate or slurs against a group, harassment or
 insults aimed at a person, threats or calls to violence, sexual content,
 encouragement of self-harm, and scam or spam wording (miracle cures, "buy now",
-crypto giveaways). The 422 does not quote the text back.
+crypto giveaways).
 
 Every decision, accepted or rejected, is stored in `submission_checks` with the
 probabilities and the pinned model version (`jev-1.13.0`), so the thresholds can
@@ -842,7 +855,7 @@ pre-filled submit link instead.
   the human can fix them. Unknown parameters are ignored. This is the same idea
   as Hacker News' `submitlink?u=&t=`.
 - An `/agents` page explains what the site is, both ways in (the `curl` example
-  and how to build the link), what Jev rejects, and the limits.
+  and how to build the link), what Jev checks, and the limits.
 - `/llms.txt`, `/agents.txt` and `/skill.md` carry the same content as plain
   text, for agents to read and act on. Static files, served with the frontend.
   `llms.txt` is the convention agents look for; `agents.txt` is a copy for those
@@ -1128,6 +1141,7 @@ or TTL on any table.
 
 - **Items and comments:** soft delete (`deleted_at`; only the admin or the
   writer deletes). Hidden from the feed, search and threads, but kept.
+- **Reports:** hidden with `hidden_at`, never removed.
 - **Accounts:** anonymized on deletion, never dropped: the username becomes
   `deleted-<id>` and the password and API key hashes are cleared.
 - **Votes:** `votes` holds one row per (item, IP hash), the current upvote. A
@@ -1152,10 +1166,11 @@ Settled with the user, including four where the user overrode the initial positi
    (User override, and the harvest/public split is the reason it holds up.)
 7. Dedup is a pre-publish check over published *and* ignored candidates: URL
    first, then Jev over a lexical shortlist. Vectors only widen the shortlist.
-8. Open publishing: anyone can post without an account. Jev (no harmful
-   language, not a duplicate) is the only check; the publisher label is
-   optional per post. (User override, 2026-10-17; harmful language added
-   2026-10-19; the topic check removed 2026-10-24.)
+8. Open publishing: anyone can post without an account. Jev is the only check:
+   it rejects duplicates and reports harmful language to the admin, who takes
+   posts down. The publisher label is optional per post. (User override,
+   2026-10-17; harmful language added 2026-10-19; the topic check removed
+   2026-10-24; harm rejection replaced by reports 2026-10-31.)
 
 ## Approaches Considered
 
@@ -1223,7 +1238,7 @@ bad claim and a live page.
 - With open publishing, nothing caps other publishers, so AI volume can bury
   hemophilia in the shared feed. Accepted at launch because usage will be low;
   revisit if hemophilia items start dropping off the front page.
-- `JEV_HARMFUL_MIN` and the 0.85 same-story threshold are
+- `JEV_REPORT_MIN` and the 0.85 same-story threshold are
   starting values; tune them on `submission_checks`.
 - Editor overflow: candidates past the per-run limit are re-scouted next run. If
   scouts stop returning them (pagination windows), they are lost. Watch

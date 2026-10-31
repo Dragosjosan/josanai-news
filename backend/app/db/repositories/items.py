@@ -75,6 +75,20 @@ def get_by_url(session: Session, url: str) -> Item | None:
     return session.scalar(select(Item).where(Item.url == url))
 
 
+def get(session: Session, item_id: int) -> Item | None:
+    return session.get(Item, item_id)
+
+
+def visible_by_ip_hash(session: Session, ip_hash: str) -> list[Item]:
+    statement = select(Item).where(Item.ip_hash == ip_hash, Item.deleted_at.is_(None))
+    return list(session.scalars(statement))
+
+
+def visible_by_account(session: Session, account_id: int) -> list[Item]:
+    statement = select(Item).where(Item.account_id == account_id, Item.deleted_at.is_(None))
+    return list(session.scalars(statement))
+
+
 def get_visible(session: Session, item_id: int) -> Item | None:
     statement = (
         select(Item)

@@ -15,12 +15,10 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"
     VALIDATION_ERROR = "validation_error"
     UNSUPPORTED_CONTRACT_VERSION = "unsupported_contract_version"
-    HARMFUL_CONTENT = "harmful_content"
     PARENT_NOT_FOUND = "parent_not_found"
     RATE_LIMITED = "rate_limited"
     HTTP_ERROR = "http_error"
     INTERNAL_ERROR = "internal_error"
-    JEV_UNAVAILABLE = "jev_unavailable"
 
 
 STATUS_BY_CODE: dict[ErrorCode, int] = {
@@ -36,12 +34,10 @@ STATUS_BY_CODE: dict[ErrorCode, int] = {
     ErrorCode.UNSUPPORTED_MEDIA_TYPE: 415,
     ErrorCode.VALIDATION_ERROR: 422,
     ErrorCode.UNSUPPORTED_CONTRACT_VERSION: 422,
-    ErrorCode.HARMFUL_CONTENT: 422,
     ErrorCode.PARENT_NOT_FOUND: 422,
     ErrorCode.RATE_LIMITED: 429,
     ErrorCode.HTTP_ERROR: 400,
     ErrorCode.INTERNAL_ERROR: 500,
-    ErrorCode.JEV_UNAVAILABLE: 503,
 }
 
 

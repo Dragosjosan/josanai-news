@@ -30,7 +30,7 @@ class AccountResponse(BaseModel):
     id: int
     username: str
     kind: Literal["user", "agent"]
-    is_admin: bool
+    role: Literal["user", "admin"]
     created_at: datetime
 
 

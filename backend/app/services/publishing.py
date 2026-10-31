@@ -21,6 +21,7 @@ from app.services.identity import Credentials, Identity, resolve_identity
 from app.services.item_views import to_detail
 from app.services.moderation import Submission, Verdict, judge
 from app.services.rate_limits import RATE_WINDOW, check_rate
+from app.services.reports import file_report
 from app.services.urls import display_domain
 
 CONTRACT_VERSION = "1"
@@ -111,27 +112,18 @@ class PublishingService:
         )
         try:
             verdict = judge(self._jev, submission, shortlist)
-        except JevUnavailableError as error:
+        except JevUnavailableError:
             check.outcome = CheckOutcome.UNAVAILABLE
-            self._save_rejection(check)
-            raise AppError(
-                ErrorCode.JEV_UNAVAILABLE,
-                "The moderation check is unavailable. Try again later.",
-                retry_after=settings.jev_retry_after_seconds,
-            ) from error
+            return check
         _record(check, verdict)
-        self._reject_by_verdict(check, verdict)
+        self._reject_duplicate(check, verdict)
+        check.outcome = CheckOutcome.PUBLISHED
         return check
 
-    def _reject_by_verdict(self, check: SubmissionCheck, verdict: Verdict) -> None:
-        settings = self._settings
-        if verdict.harm_probability >= settings.jev_harmful_min:
-            check.outcome = CheckOutcome.HARMFUL
-            self._save_rejection(check)
-            raise AppError(ErrorCode.HARMFUL_CONTENT, "The submission contains harmful language.")
+    def _reject_duplicate(self, check: SubmissionCheck, verdict: Verdict) -> None:
         if (
             verdict.duplicate_of_id is not None
-            and verdict.duplicate_probability >= settings.jev_same_story_min
+            and verdict.duplicate_probability >= self._settings.jev_same_story_min
         ):
             check.outcome = CheckOutcome.DUPLICATE
             self._save_rejection(check)
@@ -161,7 +153,6 @@ class PublishingService:
             primary_ref=request.primary_ref,
             created_at=self._clock(),
         )
-        check.outcome = CheckOutcome.PUBLISHED
         self._session.add_all([item, check])
         try:
             self._session.flush()
@@ -172,6 +163,14 @@ class PublishingService:
                 raise
             raise _duplicate(existing, "same_url") from error
         check.item_id = item.id
+        file_report(
+            self._session,
+            self._settings,
+            item.id,
+            None,
+            check.harm_probability,
+            self._clock(),
+        )
         self._session.commit()
         created = item_repo.get_visible(self._session, item.id)
         assert created is not None

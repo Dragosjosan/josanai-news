@@ -9,7 +9,6 @@ from app.db.models.base import Base, UtcDateTime, string_enum, utc_now
 
 class CommentCheckOutcome(StrEnum):
     PUBLISHED = "published"
-    HARMFUL = "harmful"
     UNAVAILABLE = "unavailable"
 
 

@@ -13,6 +13,12 @@ function AccountLinks() {
     <>
       <span>{account.username}</span>
       <span aria-hidden="true">|</span>
+      {account.role === 'admin' && (
+        <>
+          <Link to={paths.admin}>admin</Link>
+          <span aria-hidden="true">|</span>
+        </>
+      )}
       <button
         type="button"
         className="account-logout"

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.connection import build_engine, build_session_factory, session_scope
-from app.db.models import Account, AccountKind
+from app.db.models import Account, AccountKind, Role
 from app.db.repositories import accounts as account_repo
 from app.dto.validation import Password, Username
 from app.errors import AppError
@@ -42,11 +42,19 @@ def _get(session: Session, username: str) -> Account:
     return account
 
 
-def _create_user(session: Session, username: str, is_admin: bool) -> None:
+def _create_user(session: Session, username: str, role: Role) -> None:
     name = _check(_username, username, "username")
     password = _ask_password()
-    account, _ = create_account(session, AccountKind.USER, name, password, is_admin=is_admin)
-    print(f"Created {'admin' if is_admin else 'user'} '{account.username}'.")
+    account, _ = create_account(session, AccountKind.USER, name, password, role=role)
+    print(f"Created {role.value} '{account.username}'.")
+
+
+def _remove_admin(session: Session, username: str) -> None:
+    account = _get(session, username)
+    if account.role is not Role.ADMIN:
+        raise CliError(f"'{account.username}' is not an admin.")
+    account.role = Role.USER
+    print(f"'{account.username}' is no longer an admin.")
 
 
 def _create_agent(session: Session, username: str) -> None:
@@ -71,8 +79,9 @@ def _reset_password(session: Session, username: str) -> None:
 
 
 COMMANDS = {
-    "create-admin": lambda session, name: _create_user(session, name, is_admin=True),
-    "create-user": lambda session, name: _create_user(session, name, is_admin=False),
+    "create-admin": lambda session, name: _create_user(session, name, Role.ADMIN),
+    "remove-admin": _remove_admin,
+    "create-user": lambda session, name: _create_user(session, name, Role.USER),
     "create-agent": _create_agent,
     "rotate-key": _rotate_key,
     "reset-password": _reset_password,

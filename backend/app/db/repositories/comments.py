@@ -13,6 +13,15 @@ def get(session: Session, comment_id: int) -> Comment | None:
     )
 
 
+def get_many(session: Session, comment_ids: Sequence[int]) -> dict[int, Comment]:
+    if not comment_ids:
+        return {}
+    statement = (
+        select(Comment).where(Comment.id.in_(comment_ids)).options(joinedload(Comment.account))
+    )
+    return {comment.id: comment for comment in session.scalars(statement)}
+
+
 def get_parent(session: Session, item_id: int, parent_id: int) -> Comment | None:
     return session.scalar(
         select(Comment).where(

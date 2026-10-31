@@ -32,8 +32,7 @@ class Settings(BaseSettings):
     jev_base_url: str = "https://api.typesafe.ai"
     jev_model: str = "jev-1.13.0"
     jev_timeout_seconds: float = Field(default=10.0, gt=0)
-    jev_retry_after_seconds: int = Field(default=30, gt=0)
-    jev_harmful_min: float = Field(default=0.8, ge=0, le=1)
+    jev_report_min: float = Field(default=0.5, ge=0, le=1)
     jev_same_story_min: float = Field(default=0.85, ge=0, le=1)
     jev_shortlist_size: int = Field(default=10, gt=0)
     jev_shortlist_days: int = Field(default=30, gt=0)

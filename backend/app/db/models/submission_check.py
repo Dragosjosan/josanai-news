@@ -9,7 +9,6 @@ from app.db.models.base import Base, UtcDateTime, string_enum, utc_now
 
 class CheckOutcome(StrEnum):
     PUBLISHED = "published"
-    HARMFUL = "harmful"
     DUPLICATE = "duplicate"
     UNAVAILABLE = "unavailable"
 

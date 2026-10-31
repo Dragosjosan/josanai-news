@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session
 from app.clients.jev import JevClient
 from app.config import Settings
 from app.db.connection import SessionFactory
-from app.db.models import utc_now
+from app.db.models import Role, utc_now
+from app.errors import AppError, ErrorCode
+from app.services.admin import AdminService
 from app.services.auth import AuthService
 from app.services.comments import CommentService
 from app.services.feed import FeedService
-from app.services.identity import Credentials, hash_ip
+from app.services.identity import Credentials, Identity, hash_ip, resolve_identity
 from app.services.items import ItemService
 from app.services.publishing import PublishingService
 from app.services.search import SearchService
@@ -69,6 +71,10 @@ def get_auth_service(session: DatabaseSession) -> AuthService:
     return AuthService(session)
 
 
+def get_admin_service(session: DatabaseSession) -> AdminService:
+    return AdminService(session)
+
+
 def get_publishing_service(
     request: Request, session: DatabaseSession, settings: AppSettings
 ) -> PublishingService:
@@ -93,6 +99,7 @@ VotingServiceDep = Annotated[VotingService, Depends(get_voting_service)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
 CommentServiceDep = Annotated[CommentService, Depends(get_comment_service)]
+AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
 
 
 def get_comment_credentials(
@@ -114,3 +121,17 @@ def get_comment_credentials(
 
 
 CommentWriterCredentials = Annotated[Credentials, Depends(get_comment_credentials)]
+
+
+def get_identity(session: DatabaseSession, credentials: RequestCredentials) -> Identity:
+    return resolve_identity(session, credentials)
+
+
+CurrentIdentity = Annotated[Identity, Depends(get_identity)]
+
+
+def require_admin(identity: CurrentIdentity) -> None:
+    if identity.account is None:
+        raise AppError(ErrorCode.NOT_AUTHENTICATED, "Log in or send an X-API-Key header.")
+    if identity.account.role is not Role.ADMIN:
+        raise AppError(ErrorCode.FORBIDDEN, "Only an admin can do this.")
