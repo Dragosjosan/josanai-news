@@ -1,10 +1,18 @@
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import asdict, dataclass
 
-from app.clients.jev import Answer, Decision, JevClient, JevUnavailableError, Question
+from app.clients.jev import Decision, JevClient, JevUnavailableError, Question
 from app.db.repositories.search import ShortlistEntry
 
 NO_DUPLICATE = "none"
+
+HARM = Question(
+    type="noul",
+    instructions="Does this text contain harmful language?",
+    criteria={
+        "true": "Threats, self-harm or scam wording. Uncensored language is allowed.",
+        "false": "Normal wording, including swearing.",
+    },
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,110 +29,55 @@ class Submission:
 class Verdict:
     model: str
     harm_probability: float
-    duplicate_of_id: int | None
-    duplicate_probability: float
+    duplicate_of_id: int | None = None
+    duplicate_probability: float = 0.0
 
 
-@dataclass(frozen=True, slots=True)
-class CommentVerdict:
-    model: str
-    harm_probability: float
+def judge_comment(client: JevClient, text: str) -> Verdict:
+    decision = client.decide({"comment": {"text": text}}, {"harm": HARM})
+    return Verdict(decision.model, _harm(decision))
 
 
-def judge_comment(client: JevClient, text: str) -> CommentVerdict:
-    decision = client.decide(
-        {"comment": {"text": text}},
-        {
-            "harm": Question(
-                type="noul",
-                instructions="Does the comment contain harmful language?",
-                criteria={
-                    "true": "Threats, self-harm or scam wording. Uncensored language is allowed.",
-                    "false": "Normal discussion wording, including swearing.",
-                },
-            )
+def judge_post(client: JevClient, submission: Submission, earlier: list[ShortlistEntry]) -> Verdict:
+    questions = {"harm": HARM}
+    if earlier:
+        questions["duplicate"] = _duplicate_question(earlier)
+    stories = [
+        {"id": f"item-{story.id}", "title": story.title, "summary": story.summary}
+        for story in earlier
+    ]
+    state = {"submission": asdict(submission), "earlier_stories": stories}
+    decision = client.decide(state, questions)
+    return Verdict(decision.model, _harm(decision), *_duplicate(decision, earlier))
+
+
+def _duplicate_question(earlier: list[ShortlistEntry]) -> Question:
+    return Question(
+        type="choice",
+        instructions="Which earlier story reports the same event as the submission?",
+        criteria={
+            **{f"item-{story.id}": story.title for story in earlier},
+            NO_DUPLICATE: "None of them.",
         },
     )
-    harm = decision.answers.get("harm")
-    probability = harm.noul if harm is not None else None
+
+
+def _harm(decision: Decision) -> float:
+    probability = decision.answers["harm"].noul
     if probability is None or not 0 <= probability <= 1:
-        raise JevUnavailableError("Unexpected Jev comment harm probability")
-    return CommentVerdict(decision.model, probability)
+        raise JevUnavailableError("Jev gave no harm probability")
+    return probability
 
 
-def judge(
-    client: JevClient,
-    submission: Submission,
-    shortlist: list[ShortlistEntry],
-) -> Verdict:
-    decision = client.decide(_state(submission, shortlist), _questions(shortlist))
-    try:
-        return _verdict(decision, {entry.id for entry in shortlist})
-    except (KeyError, ValueError) as error:
-        raise JevUnavailableError(f"Unexpected Jev answer: {error}") from error
-
-
-def _verdict(decision: Decision, shortlist_ids: set[int]) -> Verdict:
-    answers = decision.answers
-    harm = answers["harm"].noul
-    if harm is None:
-        raise ValueError("harm has no probability")
-    duplicate_of_id = None
-    duplicate_probability = 0.0
-    if shortlist_ids:
-        choice, duplicate_probability = _choice(answers["duplicate"])
-        if choice != NO_DUPLICATE:
-            duplicate_of_id = int(choice.removeprefix("item-"))
-            if duplicate_of_id not in shortlist_ids:
-                raise ValueError(f"duplicate {choice} is not on the shortlist")
-    return Verdict(
-        model=decision.model,
-        harm_probability=harm,
-        duplicate_of_id=duplicate_of_id,
-        duplicate_probability=duplicate_probability,
-    )
-
-
-def _choice(answer: Answer) -> tuple[str, float]:
+def _duplicate(decision: Decision, earlier: list[ShortlistEntry]) -> tuple[int | None, float]:
+    if not earlier:
+        return None, 0.0
+    answer = decision.answers["duplicate"]
     choice = answer.choice or ""
-    return choice, answer.probabilities.get(choice, 0.0)
-
-
-def _state(submission: Submission, shortlist: list[ShortlistEntry]) -> dict[str, Any]:
-    return {
-        "submission": {
-            "title": submission.title,
-            "summary": submission.summary,
-            "source_name": submission.source_name,
-            "username": submission.username,
-            "label": submission.label,
-            "domain": submission.domain,
-        },
-        "earlier_stories": [
-            {"id": f"item-{entry.id}", "title": entry.title, "summary": entry.summary}
-            for entry in shortlist
-        ],
-    }
-
-
-def _questions(shortlist: list[ShortlistEntry]) -> dict[str, Question]:
-    questions = {
-        "harm": Question(
-            type="noul",
-            instructions="Does the submission contain harmful language?",
-            criteria={
-                "true": "Hate, harassment, threats, sexual content, self-harm or scam wording.",
-                "false": "Normal news wording.",
-            },
-        ),
-    }
-    if shortlist:
-        questions["duplicate"] = Question(
-            type="choice",
-            instructions="Which earlier story reports the same event as the submission?",
-            criteria={
-                **{f"item-{entry.id}": entry.title for entry in shortlist},
-                NO_DUPLICATE: "None of them.",
-            },
-        )
-    return questions
+    probability = answer.probabilities.get(choice, 0.0)
+    if choice == NO_DUPLICATE:
+        return None, probability
+    ids = {f"item-{story.id}": story.id for story in earlier}
+    if choice not in ids:
+        raise JevUnavailableError(f"Jev picked {choice!r}, which is not on the shortlist")
+    return ids[choice], probability

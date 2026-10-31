@@ -19,7 +19,7 @@ from app.dto.items import ItemDetail, SubmitItemRequest
 from app.errors import AppError, ErrorCode
 from app.services.identity import Credentials, Identity, resolve_identity
 from app.services.item_views import to_detail
-from app.services.moderation import Submission, Verdict, judge
+from app.services.moderation import Submission, Verdict, judge_post
 from app.services.rate_limits import RATE_WINDOW, check_rate
 from app.services.reports import file_report
 from app.services.urls import display_domain
@@ -111,7 +111,7 @@ class PublishingService:
             created_at=self._clock(),
         )
         try:
-            verdict = judge(self._jev, submission, shortlist)
+            verdict = judge_post(self._jev, submission, shortlist)
         except JevUnavailableError:
             check.outcome = CheckOutcome.UNAVAILABLE
             return check
