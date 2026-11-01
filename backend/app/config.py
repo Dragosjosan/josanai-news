@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///data/news.db"
     max_body_bytes: int = Field(default=64 * 1024, gt=0)
 
-    accounts_enabled: bool = False
     post_requires_account: bool = False
     comment_requires_account: bool = False
 

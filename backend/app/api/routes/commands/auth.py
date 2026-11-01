@@ -16,7 +16,6 @@ from app.dto.accounts import (
 from app.services.identity import SESSION_LIFETIME
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-signup_router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _set_session_cookie(response: Response, token: str, settings: AppSettings) -> None:
@@ -31,7 +30,7 @@ def _set_session_cookie(response: Response, token: str, settings: AppSettings) -
     )
 
 
-@signup_router.post("/signup", status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(
     body: SignupRequest,
     response: Response,

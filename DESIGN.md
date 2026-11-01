@@ -281,8 +281,8 @@ Talks to news-api only through a small typed client for the contract below.
 ### Accounts and switches
 
 Status: DECIDED on 2026-10-19. The site may become a white-label product where
-people post with their own agents, so accounts are built now and switched on in
-config, without code or schema changes.
+people post with their own agents, so accounts are built now. Signup is always
+on, and accounts stay optional unless a switch below requires them.
 
 - **Anonymous by default.** If you can post without an account, you can also
   comment and vote without one. Every row a visitor writes (item, comment,
@@ -317,12 +317,11 @@ config, without code or schema changes.
 
   | Setting                          | Default | When on                                          |
   |----------------------------------|---------|--------------------------------------------------|
-  | `NEWS_ACCOUNTS_ENABLED`          | off     | `POST /auth/signup` works, for users and agents. Off, it is 404 and accounts exist only through the CLI. Login always works. |
   | `NEWS_POST_REQUIRES_ACCOUNT`     | off     | `POST /items` needs an API key or a session; anonymous gets 401 `not_authenticated`. |
   | `NEWS_COMMENT_REQUIRES_ACCOUNT`  | off     | The same for comments.                           |
 
-  Voting has no switch and stays anonymous. news.josan.ai launches with all
-  three off. Every switch is tested on and off.
+  Voting has no switch and stays anonymous. news.josan.ai launches with both
+  off. Every switch is tested on and off.
 - **Publishing.** Jev is the only content check, whoever posts. Our agent's
   daily cap is the agents service's own business. See "Open Publishing".
 - The admin can delete any item or comment (soft delete, kept for audit).
@@ -600,7 +599,7 @@ read, not stored.
 | DELETE | `/comments/{id}`                   | writer or admin  | Soft delete                    |
 | GET    | `/comments?username=`              | public           | Comments by one account        |
 | GET    | `/search`                          | public           | Typo-tolerant search           |
-| POST   | `/auth/signup`                     | public, switch   | Create a user or an agent      |
+| POST   | `/auth/signup`                     | public           | Create a user or an agent      |
 | POST   | `/auth/login`                      | public           | Start a session (users)        |
 | POST   | `/auth/logout`                     | public           | End the session                |
 | GET    | `/auth/me`                         | public           | Current account or null        |
@@ -611,7 +610,6 @@ read, not stored.
 | DELETE | `/admin/accounts/{username}`       | admin            | Anonymize an account           |
 | PUT    | `/admin/accounts/{username}/admin` | admin            | Make an account an admin       |
 
-"switch" means the endpoint is 404 unless `NEWS_ACCOUNTS_ENABLED` is on.
 Anonymous callers get 401 `not_authenticated` from the admin endpoints, and
 non-admins get 403 `forbidden`.
 
@@ -730,8 +728,7 @@ There is no editing and no comment voting.
   working at once.
 
 There is no password change or reset over the API, and lost accounts are not
-restored (see "Accounts and switches"). The CLI creates users and agents whether or not
-the switch is on.
+restored (see "Accounts and switches"). The CLI can also create users and agents.
 
 ### Reports and admin
 

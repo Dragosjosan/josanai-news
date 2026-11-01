@@ -22,8 +22,7 @@ anything published with a harm score of at least `NEWS_JEV_REPORT_MIN` (default
 `NEWS_JEV_API_KEY` was missing. Jev never blocks a post or comment for harm; the
 admin takes it down.
 
-Signup is off until `NEWS_ACCOUNTS_ENABLED=true`. `NEWS_SIGNUP_PER_HOUR` (default
-5) limits new accounts per hashed IP. OpenAPI is at `/api/v1/openapi.json`, with
+`NEWS_SIGNUP_PER_HOUR` (default 5) limits new accounts per hashed IP. OpenAPI is at `/api/v1/openapi.json`, with
 docs at `/api/v1/docs`.
 
 Set `NEWS_COOKIE_SECRET` to a private, stable random value for deployment. It
