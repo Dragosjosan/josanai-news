@@ -1,4 +1,5 @@
 import hashlib
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -334,6 +335,8 @@ def _fake_hash(value: str) -> str:
 
 
 def main() -> None:
+    if not settings.seed_allowed:
+        sys.exit("Seeding is off. It is for local databases only; use make seed.")
     engine = build_engine(settings.database_url)
     with session_scope(build_session_factory(engine)) as session:
         created = seed_demo(session, utc_now())

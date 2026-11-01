@@ -1,8 +1,12 @@
 # News API
 
 From this directory, initialize the local database with `uv run alembic upgrade
-head`, then add demo stories and threaded comments with `uv run python -m
-app.db.seed`. Run the API with `uv run uvicorn app.main:app --reload`.
+head`, then add demo stories and threaded comments with `make seed` from the
+repository root. Run the API with `uv run uvicorn app.main:app --reload`.
+
+Seeding is for local databases only. The seed creates accounts with known
+passwords, so it refuses to run unless `NEWS_SEED_ALLOWED=true`. Never set that
+in production.
 
 Before launch, schema changes edit `0001_initial_schema.py`. An existing
 database stamped `0001` needs to be backed up and rebuilt from that migration;

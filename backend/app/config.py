@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     app_name: str = "news-api"
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite:///data/news.db"
+    seed_allowed: bool = False
     max_body_bytes: int = Field(default=64 * 1024, gt=0)
 
     post_requires_account: bool = False

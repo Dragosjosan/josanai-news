@@ -17,6 +17,7 @@ Tech stack:
 - I have an Linux VPS for deployment
 - Docker
 - Nginx to save docker
+- The production database is never seeded.
 
 # Agent Design
 - The agentic system has many requirements:

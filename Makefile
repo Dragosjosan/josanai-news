@@ -1,8 +1,11 @@
-.PHONY: help install migrate seed reset-db test lint build run down db-export reset-docker-db
+.PHONY: help install migrate seed reset-db test lint build run down db-export reset-docker-db check-not-prod check-prod-env build-prod run-prod deploy-prod restart-prod down-prod logs-prod
 
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose -f docker-compose.yml
+PROD_ENV_FILE ?= /etc/news/.env
+PROD_COMPOSE := NEWS_ENV_FILE=$(PROD_ENV_FILE) $(COMPOSE)
+PROD_REQUIRED_KEYS := NEWS_COOKIE_SECRET NEWS_IP_HASH_SALT NEWS_JEV_API_KEY
 
 help:
 	@echo "Development:"
@@ -19,6 +22,14 @@ help:
 	@echo "  make down      - stop the containers"
 	@echo "  make db-export - copy the Docker database to backend/data/news-docker.db"
 	@echo "  make reset-docker-db - delete the Docker database, rebuild and seed it"
+	@echo ""
+	@echo "Production (secrets in $(PROD_ENV_FILE)):"
+	@echo "  make build-prod   - build the images"
+	@echo "  make run-prod     - start the containers"
+	@echo "  make deploy-prod  - rebuild, replace the containers and wait until healthy"
+	@echo "  make restart-prod - restart the containers without rebuilding"
+	@echo "  make down-prod    - stop the containers, keeping the data"
+	@echo "  make logs-prod    - follow the last 100 log lines"
 
 install:
 	cd backend && uv sync
@@ -28,10 +39,13 @@ install:
 migrate:
 	cd backend && uv run alembic upgrade head
 
-seed: migrate
-	cd backend && uv run python -m app.db.seed
+check-not-prod:
+	@test ! -e "$(PROD_ENV_FILE)" || { echo "Refusing: $(PROD_ENV_FILE) exists, so this is a production machine."; exit 1; }
 
-reset-db:
+seed: check-not-prod migrate
+	cd backend && NEWS_SEED_ALLOWED=true uv run python -m app.db.seed
+
+reset-db: check-not-prod
 	rm -f backend/data/news.db backend/data/news.db-wal backend/data/news.db-shm
 	$(MAKE) seed
 
@@ -60,8 +74,31 @@ db-export:
 	$(COMPOSE) cp backend:/app/data/export.db backend/data/news-docker.db
 	$(COMPOSE) exec backend rm -f data/export.db
 
-reset-docker-db:
+reset-docker-db: check-not-prod
 	$(COMPOSE) down -v
 	$(COMPOSE) up -d --build --wait
-	$(COMPOSE) exec backend uv run --no-dev python -m app.db.seed
+	$(COMPOSE) exec -e NEWS_SEED_ALLOWED=true backend uv run --no-dev python -m app.db.seed
 
+check-prod-env:
+	@test -r "$(PROD_ENV_FILE)" || { echo "Missing or unreadable: $(PROD_ENV_FILE)"; exit 1; }
+	@for key in $(PROD_REQUIRED_KEYS); do \
+		grep -q "^$$key=." "$(PROD_ENV_FILE)" || { echo "Set $$key in $(PROD_ENV_FILE)"; exit 1; }; \
+	done
+
+build-prod:
+	$(PROD_COMPOSE) build
+
+run-prod: check-prod-env
+	$(PROD_COMPOSE) up -d --remove-orphans
+
+deploy-prod: check-prod-env
+	$(PROD_COMPOSE) up -d --build --remove-orphans --wait
+
+restart-prod:
+	$(PROD_COMPOSE) restart
+
+down-prod:
+	$(PROD_COMPOSE) down
+
+logs-prod:
+	$(PROD_COMPOSE) logs --tail=100 -f
