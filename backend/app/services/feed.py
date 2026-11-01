@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db.models import utc_now
+from app.db.repositories import accounts as account_repo
 from app.db.repositories import comments as comment_repo
 from app.db.repositories import items as item_repo
 from app.db.repositories import votes as vote_repo
@@ -28,7 +29,13 @@ class FeedService:
         self._ranking = RankingSettings(gravity=settings.rank_gravity)
 
     def get_feed(self, query: FeedQuery, ip_hash: str) -> FeedResponse:
-        item_ids = self._item_ids(query)
+        account_id = None
+        if query.username is not None:
+            account = account_repo.get_by_username(self._session, query.username.lower())
+            if account is None:
+                return FeedResponse(items=[])
+            account_id = account.id
+        item_ids = self._item_ids(query, account_id)
         items = item_repo.get_items_in_order(self._session, item_ids)
         voted = vote_repo.voted_item_ids(self._session, ip_hash, item_ids)
         counts = comment_repo.visible_counts(self._session, item_ids)
@@ -36,7 +43,7 @@ class FeedService:
             items=[to_summary(item, item.id in voted, counts.get(item.id, 0)) for item in items]
         )
 
-    def _item_ids(self, query: FeedQuery) -> list[int]:
+    def _item_ids(self, query: FeedQuery, account_id: int | None) -> list[int]:
         if query.day is not None:
             start = datetime.combine(query.day, time(), tzinfo=UTC)
             return item_repo.list_day_ids(
@@ -45,10 +52,13 @@ class FeedService:
                 start + timedelta(days=1),
                 by_votes=query.sort == "top",
                 limit=self._feed_size,
+                account_id=account_id,
             )
         if query.sort == "new":
-            return item_repo.list_newest_ids(self._session, self._feed_size)
-        candidates = item_repo.list_rank_candidates(self._session, self._candidate_limit)
+            return item_repo.list_newest_ids(self._session, self._feed_size, account_id)
+        candidates = item_repo.list_rank_candidates(
+            self._session, self._candidate_limit, account_id
+        )
         return self._rank(candidates)[: self._feed_size]
 
     def _rank(self, candidates: list[RankCandidate]) -> list[int]:

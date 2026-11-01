@@ -10,8 +10,13 @@ class SubmitCommentRequest(RequestModel):
     parent_id: int | None = Field(default=None, gt=0)
 
 
+class AccountCommentsQuery(RequestModel):
+    username: str = Field(max_length=32)
+
+
 class CommentResponse(BaseModel):
     id: int
+    item_id: int
     parent_id: int | None
     author: str | None
     text: str | None

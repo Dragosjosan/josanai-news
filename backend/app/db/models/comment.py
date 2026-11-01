@@ -9,7 +9,10 @@ from app.db.models.base import Base, UtcDateTime, utc_now
 
 class Comment(Base):
     __tablename__ = "comments"
-    __table_args__ = (Index("ix_comments_item_id_created_at_id", "item_id", "created_at", "id"),)
+    __table_args__ = (
+        Index("ix_comments_item_id_created_at_id", "item_id", "created_at", "id"),
+        Index("ix_comments_account_id_created_at", "account_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))

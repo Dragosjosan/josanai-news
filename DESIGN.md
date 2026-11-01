@@ -127,8 +127,9 @@ app/
   main.py  config.py  cli.py          cli: create-admin, remove-admin, create-user,
                                       create-agent, rotate-key, reset-password
   api/router.py  api/dependencies.py  db session, current user, API-key auth
-  api/routes/                         controllers: items comments votes search
-                                      auth accounts admin health
+  api/routes/queries/                 read controllers: items comments search auth admin
+  api/routes/commands/                write controllers: items comments auth admin
+  api/routes/health.py
   services/                           business rules, no FastAPI imports: ranking feed
                                       publishing voting comments auth search
                                       urls
@@ -528,6 +529,17 @@ Cookie changes cannot reset the anonymous limit.
 | `COMMENT_PER_HOUR`  | 30      | `POST /items/{id}/comments`                          |
 | `SIGNUP_PER_HOUR`   | 5       | `POST /auth/signup`, per IP hash, new accounts only  |
 
+### Commands and queries
+
+Controllers are split by intent. `api/routes/queries/` holds everything that only
+reads and `api/routes/commands/` everything that changes state. Queries return
+DTOs and take a typed query model that names the allowed filters and rejects
+unknown ones, so only public, indexed fields can be filtered. `GET
+/items?username=` works with `sort` and `day`; an unknown username returns an
+empty list. Filters are added only when a page or an agent needs them. OData and
+other dynamic query languages were considered and left out: Python has no
+equivalent of ASP.NET's OData controllers.
+
 ### Shapes
 
 ```
@@ -551,6 +563,7 @@ ItemDetail = ItemSummary +
 
 Comment
   id               int
+  item_id          int
   parent_id        int | null
   author           str | null          the account's username; null when
                                        anonymous or deleted
@@ -585,6 +598,7 @@ read, not stored.
 | GET    | `/items/{id}/comments`             | public           | Thread                         |
 | POST   | `/items/{id}/comments`             | public           | Comment or reply               |
 | DELETE | `/comments/{id}`                   | writer or admin  | Soft delete                    |
+| GET    | `/comments?username=`              | public           | Comments by one account        |
 | GET    | `/search`                          | public           | Typo-tolerant search           |
 | POST   | `/auth/signup`                     | public, switch   | Create a user or an agent      |
 | POST   | `/auth/login`                      | public           | Start a session (users)        |

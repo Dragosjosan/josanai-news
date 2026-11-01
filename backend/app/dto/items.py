@@ -34,9 +34,10 @@ def _not_far_future(value: datetime) -> datetime:
 PublishedAt = Annotated[AwareDatetime, AfterValidator(_not_far_future)]
 
 
-class FeedQuery(BaseModel):
+class FeedQuery(RequestModel):
     sort: Literal["top", "new"] = "top"
     day: date | None = None
+    username: str | None = Field(default=None, max_length=32)
 
 
 class SearchQuery(BaseModel):

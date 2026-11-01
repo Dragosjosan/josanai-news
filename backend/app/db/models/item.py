@@ -9,7 +9,10 @@ from app.db.models.base import Base, UtcDateTime, utc_now
 
 class Item(Base):
     __tablename__ = "items"
-    __table_args__ = (Index("ix_items_created_at_id", "created_at", "id"),)
+    __table_args__ = (
+        Index("ix_items_created_at_id", "created_at", "id"),
+        Index("ix_items_account_id_created_at", "account_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(300))

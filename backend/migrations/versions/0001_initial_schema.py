@@ -71,6 +71,9 @@ def upgrade() -> None:
     )
     with op.batch_alter_table("items", schema=None) as batch_op:
         batch_op.create_index("ix_items_created_at_id", ["created_at", "id"], unique=False)
+        batch_op.create_index(
+            "ix_items_account_id_created_at", ["account_id", "created_at"], unique=False
+        )
 
     op.create_table(
         "votes",
@@ -157,6 +160,9 @@ def upgrade() -> None:
     with op.batch_alter_table("comments", schema=None) as batch_op:
         batch_op.create_index(
             "ix_comments_item_id_created_at_id", ["item_id", "created_at", "id"], unique=False
+        )
+        batch_op.create_index(
+            "ix_comments_account_id_created_at", ["account_id", "created_at"], unique=False
         )
 
     op.create_table(

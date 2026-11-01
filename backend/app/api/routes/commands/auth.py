@@ -66,11 +66,6 @@ def logout(request: Request, settings: AppSettings, auth: AuthServiceDep) -> Res
     return response
 
 
-@router.get("/me")
-def me(credentials: RequestCredentials, auth: AuthServiceDep) -> AccountResponse | None:
-    return auth.current(credentials)
-
-
 @router.post("/rotate-key")
 def rotate_key(credentials: RequestCredentials, auth: AuthServiceDep) -> ApiKeyResponse:
     return ApiKeyResponse(api_key=auth.rotate_key(credentials))

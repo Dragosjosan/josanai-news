@@ -61,6 +61,7 @@ export type LoginBody = {
 
 export type Comment = {
   id: number
+  item_id: number
   parent_id: number | null
   author: string | null
   text: string | null

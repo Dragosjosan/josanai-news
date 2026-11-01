@@ -5,16 +5,9 @@ from app.api.dependencies import (
     CommentWriterCredentials,
     RequestCredentials,
 )
-from app.dto.comments import CommentResponse, SubmitCommentRequest, ThreadResponse
+from app.dto.comments import CommentResponse, SubmitCommentRequest
 
 router = APIRouter(tags=["comments"])
-
-
-@router.get("/items/{item_id}/comments")
-def list_comments(
-    item_id: int, credentials: RequestCredentials, comments: CommentServiceDep
-) -> ThreadResponse:
-    return comments.thread(item_id, credentials)
 
 
 @router.post("/items/{item_id}/comments", status_code=status.HTTP_201_CREATED)

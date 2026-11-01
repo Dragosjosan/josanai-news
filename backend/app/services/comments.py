@@ -6,9 +6,15 @@ from sqlalchemy.orm import Session
 from app.clients.jev import JevClient, JevUnavailableError
 from app.config import Settings
 from app.db.models import Comment, CommentCheck, CommentCheckOutcome, Role, utc_now
+from app.db.repositories import accounts as account_repo
 from app.db.repositories import comments as comment_repo
 from app.db.repositories import items as item_repo
-from app.dto.comments import CommentResponse, SubmitCommentRequest, ThreadResponse
+from app.dto.comments import (
+    AccountCommentsQuery,
+    CommentResponse,
+    SubmitCommentRequest,
+    ThreadResponse,
+)
 from app.errors import AppError, ErrorCode
 from app.services.identity import Credentials, Identity, resolve_identity
 from app.services.moderation import judge_comment
@@ -36,6 +42,20 @@ class CommentService:
             comments=[
                 _view(comment, identity)
                 for comment in comment_repo.list_thread(self._session, item_id)
+            ]
+        )
+
+    def by_account(self, query: AccountCommentsQuery, credentials: Credentials) -> ThreadResponse:
+        identity = resolve_identity(self._session, credentials)
+        account = account_repo.get_by_username(self._session, query.username.lower())
+        if account is None:
+            return ThreadResponse(comments=[])
+        return ThreadResponse(
+            comments=[
+                _view(comment, identity)
+                for comment in comment_repo.list_by_account(
+                    self._session, account.id, self._settings.feed_size
+                )
             ]
         )
 
@@ -155,6 +175,7 @@ def _view(comment: Comment, identity: Identity) -> CommentResponse:
     deleted = comment.deleted_at is not None
     return CommentResponse(
         id=comment.id,
+        item_id=comment.item_id,
         parent_id=comment.parent_id,
         author=comment.account.username if comment.account is not None and not deleted else None,
         text=comment.text if not deleted else None,

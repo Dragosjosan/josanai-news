@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.models import Comment, CommentCheck
+from app.db.models import Comment, CommentCheck, Item
 
 
 def get(session: Session, comment_id: int) -> Comment | None:
@@ -38,6 +38,22 @@ def list_thread(session: Session, item_id: int) -> list[Comment]:
         .where(Comment.item_id == item_id)
         .options(joinedload(Comment.account))
         .order_by(Comment.created_at, Comment.id)
+    )
+    return list(session.scalars(statement))
+
+
+def list_by_account(session: Session, account_id: int, limit: int) -> list[Comment]:
+    statement = (
+        select(Comment)
+        .join(Item, Comment.item_id == Item.id)
+        .where(
+            Comment.account_id == account_id,
+            Comment.deleted_at.is_(None),
+            Item.deleted_at.is_(None),
+        )
+        .options(joinedload(Comment.account))
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
+        .limit(limit)
     )
     return list(session.scalars(statement))
 

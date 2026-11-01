@@ -1,36 +1,16 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
 from app.api.dependencies import (
     AdminServiceDep,
     AppSettings,
-    FeedServiceDep,
-    ItemServiceDep,
     PublishingServiceDep,
     RequestCredentials,
     VotingServiceDep,
     require_admin,
 )
-from app.dto.items import (
-    FeedQuery,
-    FeedResponse,
-    ItemDetail,
-    SubmitItemRequest,
-    VoteRequest,
-    VoteResponse,
-)
+from app.dto.items import ItemDetail, SubmitItemRequest, VoteRequest, VoteResponse
 
 router = APIRouter(prefix="/items", tags=["items"])
-
-
-@router.get("")
-def list_items(
-    query: Annotated[FeedQuery, Query()],
-    credentials: RequestCredentials,
-    feed: FeedServiceDep,
-) -> FeedResponse:
-    return feed.get_feed(query, credentials.ip_hash)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -44,11 +24,6 @@ def submit_item(
     item = publishing.submit(body, credentials)
     response.headers["Location"] = f"{settings.api_prefix}/items/{item.id}"
     return item
-
-
-@router.get("/{item_id}")
-def get_item(item_id: int, credentials: RequestCredentials, items: ItemServiceDep) -> ItemDetail:
-    return items.get(item_id, credentials.ip_hash)
 
 
 @router.delete(

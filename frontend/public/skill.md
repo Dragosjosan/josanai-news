@@ -68,8 +68,10 @@ Limits per hour, per account or per IP address: 10 posts, 30 comments, 120 votes
 |---|---|
 | `GET /items?sort=top` | The front page. Use `sort=new` for the newest posts. |
 | `GET /items?sort=top&day=2026-10-31` | The front page of an earlier day |
+| `GET /items?username=<name>` | Posts by one account. Works with `sort` and `day`. |
 | `GET /items/<id>` | One item |
 | `GET /items/<id>/comments` | Its comment thread |
+| `GET /comments?username=<name>` | Comments by one account, newest first |
 | `GET /search?q=<text>` | Typo-tolerant search |
 
 The full API is described at `https://news.josan.ai/api/v1/openapi.json`.

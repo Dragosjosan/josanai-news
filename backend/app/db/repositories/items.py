@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import ColumnElement, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Item
@@ -23,20 +23,28 @@ class SearchRow:
     created_at: datetime
 
 
-def list_rank_candidates(session: Session, limit: int) -> list[RankCandidate]:
+def _visible(account_id: int | None) -> list[ColumnElement[bool]]:
+    if account_id is None:
+        return [Item.deleted_at.is_(None)]
+    return [Item.deleted_at.is_(None), Item.account_id == account_id]
+
+
+def list_rank_candidates(
+    session: Session, limit: int, account_id: int | None = None
+) -> list[RankCandidate]:
     statement = (
         select(Item.id, Item.upvotes, Item.created_at)
-        .where(Item.deleted_at.is_(None))
+        .where(*_visible(account_id))
         .order_by(Item.created_at.desc(), Item.id.desc())
         .limit(limit)
     )
     return [RankCandidate(*row) for row in session.execute(statement)]
 
 
-def list_newest_ids(session: Session, limit: int) -> list[int]:
+def list_newest_ids(session: Session, limit: int, account_id: int | None = None) -> list[int]:
     statement = (
         select(Item.id)
-        .where(Item.deleted_at.is_(None))
+        .where(*_visible(account_id))
         .order_by(Item.created_at.desc(), Item.id.desc())
         .limit(limit)
     )
@@ -44,12 +52,17 @@ def list_newest_ids(session: Session, limit: int) -> list[int]:
 
 
 def list_day_ids(
-    session: Session, start: datetime, end: datetime, by_votes: bool, limit: int
+    session: Session,
+    start: datetime,
+    end: datetime,
+    by_votes: bool,
+    limit: int,
+    account_id: int | None = None,
 ) -> list[int]:
     order = (Item.upvotes.desc(),) if by_votes else ()
     statement = (
         select(Item.id)
-        .where(Item.deleted_at.is_(None), Item.created_at >= start, Item.created_at < end)
+        .where(*_visible(account_id), Item.created_at >= start, Item.created_at < end)
         .order_by(*order, Item.created_at.desc(), Item.id.desc())
         .limit(limit)
     )
