@@ -1,9 +1,12 @@
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models import Account, AccountKind, Role, UserSession
+from app.config import Settings
+from app.db.models import Account, AccountKind, Role, UserSession, utc_now
 from app.db.repositories import accounts as account_repo
 from app.db.repositories import sessions as session_repo
 from app.dto.accounts import AccountResponse, LoginRequest, SignupRequest
@@ -16,6 +19,7 @@ from app.services.identity import (
     resolve_identity,
     verify_password,
 )
+from app.services.rate_limits import RATE_WINDOW, check_rate
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +51,7 @@ def create_account(
     username: str,
     password: str | None,
     role: Role = Role.USER,
+    ip_hash: str | None = None,
 ) -> tuple[Account, str | None]:
     api_key = new_secret() if kind is AccountKind.AGENT else None
     account = Account(
@@ -55,13 +60,16 @@ def create_account(
         role=role,
         password_hash=hash_password(password) if password is not None else None,
         api_key_hash=hash_secret(api_key) if api_key is not None else None,
+        ip_hash=ip_hash,
     )
     session.add(account)
     try:
         session.flush()
     except IntegrityError as error:
         session.rollback()
-        raise AppError(ErrorCode.USERNAME_TAKEN, "That username is taken.") from error
+        raise AppError(
+            ErrorCode.USERNAME_TAKEN, "That username is taken. Pick another one."
+        ) from error
     return account, api_key
 
 
@@ -77,17 +85,26 @@ def set_password(session: Session, account: Account, password: str) -> None:
 
 
 class AuthService:
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: Session,
+        settings: Settings,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
         self._session = session
+        self._settings = settings
+        self._clock = clock
 
-    def signup(self, request: SignupRequest) -> SignupResult:
+    def signup(self, request: SignupRequest, ip_hash: str) -> SignupResult:
+        self._check_rate(ip_hash)
         if account_repo.get_by_username(self._session, request.username.lower()) is not None:
-            raise AppError(ErrorCode.USERNAME_TAKEN, "That username is taken.")
+            raise AppError(ErrorCode.USERNAME_TAKEN, "That username is taken. Pick another one.")
         account, api_key = create_account(
             self._session,
             AccountKind(request.kind),
             request.username,
             request.password,
+            ip_hash=ip_hash,
         )
         token = self._start_session(account) if account.kind is AccountKind.USER else None
         self._session.commit()
@@ -125,6 +142,11 @@ class AuthService:
         api_key = issue_api_key(account)
         self._session.commit()
         return api_key
+
+    def _check_rate(self, ip_hash: str) -> None:
+        now = self._clock()
+        count, oldest = account_repo.recent_signups(self._session, ip_hash, now - RATE_WINDOW)
+        check_rate(count, oldest, self._settings.signup_per_hour, now, "signups")
 
     def _start_session(self, account: Account) -> str:
         token = new_secret()

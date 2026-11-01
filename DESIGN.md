@@ -184,7 +184,8 @@ tests/e2e/         Playwright
 ### Types: the code is the source of truth
 
 There is no committed OpenAPI file. FastAPI produces the schema from the code
-(`app.openapi()`, also served at `/openapi.json` with docs at `/docs`).
+(`app.openapi()`, also served at `/api/v1/openapi.json` with docs at
+`/api/v1/docs`).
 `make gen-types` reads it straight from the app object, with no server running:
 - `openapi-typescript` generates `frontend/src/api/schema.d.ts`.
 - `datamodel-code-generator` generates
@@ -288,8 +289,11 @@ config, without code or schema changes.
   filled when an account wrote it. The anonymous traces (IP hash, voter cookie)
   are stored either way.
 - **Two kinds of account**, told apart by `accounts.kind`:
-  - `user`: a person. Logs in with username + password; there is no email,
-    and so no self-service reset (the admin resets passwords via the CLI).
+  - `user`: a person. Logs in with username + password. There is no email, so
+    nothing proves who owns an account: a lost password or API key means the
+    account is gone, and the owner signs up again under a new name. The site
+    never resets an account on request, because that would hand it to whoever
+    asks. The CLI commands are only for accounts the operator owns.
     Passwords are hashed with argon2. Login sets an HttpOnly, SameSite=Lax
     session cookie.
   - `agent`: a program. Sends `X-API-Key`. The key is random, shown once, and
@@ -305,8 +309,9 @@ config, without code or schema changes.
   cannot lock out the other admins, and the server can always recover. An agent
   that reads untrusted content, such as a scraper, is never made an admin:
   injected text could then delete posts.
-- Signup has a honeypot field against bots. Signup and login have no rate limit
-  of their own; nginx `limit_req` on `/api` covers floods.
+- Signup has a honeypot field against bots, and a per-IP limit (see "Rate
+  limits"). Login has no limit of its own; nginx `limit_req` on `/api` covers
+  floods.
 - **Switches** are backend settings. The frontend ignores them at first.
 
   | Setting                          | Default | When on                                          |
@@ -466,7 +471,6 @@ and 500s, uses one body:
 | 413    | `payload_too_large`                      | Request body over 64 KB                           |
 | 415    | `unsupported_media_type`                 | A write without `application/json`                |
 | 422    | `validation_error`                       | Body or query fails validation; `details.fields`  |
-| 422    | `unsupported_contract_version`           | `contract_version` is not `"1"`                   |
 | 422    | `parent_not_found`                       | Reply to a comment that is missing, deleted, or on another item |
 | 429    | `rate_limited`                           | `Retry-After` header set, also `details.retry_after` |
 | 500    | `internal_error`                         | Logged with a request id, returned in `details`   |
@@ -522,6 +526,7 @@ Cookie changes cannot reset the anonymous limit.
 | `SUBMIT_PER_HOUR`   | 10      | `POST /items`, every attempt. Our agent posts at most 10 a day, well below it |
 | `VOTE_PER_HOUR`     | 120     | `PUT /items/{id}/vote`                               |
 | `COMMENT_PER_HOUR`  | 30      | `POST /items/{id}/comments`                          |
+| `SIGNUP_PER_HOUR`   | 5       | `POST /auth/signup`, per IP hash, new accounts only  |
 
 ### Shapes
 
@@ -581,7 +586,6 @@ read, not stored.
 | POST   | `/items/{id}/comments`             | public           | Comment or reply               |
 | DELETE | `/comments/{id}`                   | writer or admin  | Soft delete                    |
 | GET    | `/search`                          | public           | Typo-tolerant search           |
-| GET    | `/publishers`                      | public           | Leaderboard                    |
 | POST   | `/auth/signup`                     | public, switch   | Create a user or an agent      |
 | POST   | `/auth/login`                      | public           | Start a session (users)        |
 | POST   | `/auth/logout`                     | public           | End the session                |
@@ -607,7 +611,6 @@ submit page, or anyone anonymously, as "Identity" resolves it.
 POST /api/v1/items      X-API-Key: <key>   (optional; omit to post anonymously)
 
 {
-  "contract_version":   "1",
   "title":              str,            1–300
   "url":                str,
   "label":              str | null,     1–40, accounts only, see "Labels"
@@ -629,7 +632,7 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 
 **Order of checks.** The first failure wins.
 
-1. Body shape and limits → 422 `validation_error`, `unsupported_contract_version`.
+1. Body shape and limits → 422 `validation_error`.
 2. Identity: `X-API-Key`, when sent → 401 `invalid_api_key`. Anonymous while
    `NEWS_POST_REQUIRES_ACCOUNT` is on → 401 `not_authenticated`.
 3. Rate limit → 429.
@@ -664,9 +667,6 @@ Jev's same-story check. Later, if duplicates slip through: canonical URLs.
 - `GET /search?q=&page=` → `{ "items": [ItemSummary], "page": int, "has_more":
   bool }`. Typo-tolerant, see "Search". `q` is 0–200 characters; an empty `q`
   returns no items. `page` starts at 1. 70 per page.
-- `GET /publishers?period=week|all` →
-  `[{ "username": str, "items": int, "votes": int }]`, top 100 by votes.
-  `period` defaults to `week`.
 
 ### Votes
 
@@ -715,8 +715,8 @@ There is no editing and no comment voting.
 - `POST /auth/rotate-key` (agent) → 200 `{ "api_key": str }`. The old key stops
   working at once.
 
-There is no password change or reset over the API; the admin resets passwords
-and lost API keys with the CLI. The CLI creates users and agents whether or not
+There is no password change or reset over the API, and lost accounts are not
+restored (see "Accounts and switches"). The CLI creates users and agents whether or not
 the switch is on.
 
 ### Reports and admin
@@ -792,10 +792,10 @@ The call is `POST https://api.typesafe.ai/v1/systemone` with
 The shortlist uses the `items_fts` FTS5 table (title, summary, source name),
 kept in sync with `items` by triggers created in the migration.
 
-**Harmful language** means: hate or slurs against a group, harassment or
-insults aimed at a person, threats or calls to violence, sexual content,
-encouragement of self-harm, and scam or spam wording (miracle cures, "buy now",
-crypto giveaways).
+**Harmful language** means: threats, encouragement of self-harm, and scam wording
+(miracle cures, "buy now", crypto giveaways). Swearing and uncensored language
+are allowed. Posts and comments share this one rule, and it only flags: nothing
+is blocked for harm.
 
 Every decision, accepted or rejected, is stored in `submission_checks` with the
 probabilities and the pinned model version (`jev-1.13.0`), so the thresholds can
@@ -831,9 +831,12 @@ username and label, or we show nothing.
 
 ### Publisher leaderboard
 
+Status: DEFERRED on 2026-10-31. Not built and not in the build order; added once
+it is needed.
+
 - `GET /api/v1/publishers?period=week|all` →
-  `[{ "username", "items", "votes" }]`, ordered by votes. Anonymous
-  posts are left out.
+  `[{ "username", "items", "votes" }]`, top 100 by votes. `period` defaults to
+  `week`. Anonymous posts are left out.
 - A `/publishers` page in the frontend, linked from the header, like HN's
   `/leaders`.
 - Anonymous votes can be farmed. That is accepted at launch. If it happens, the fix is to count only account votes on the
@@ -854,20 +857,21 @@ pre-filled submit link instead.
   an item. Values that fail validation are still shown, with the field error, so
   the human can fix them. Unknown parameters are ignored. This is the same idea
   as Hacker News' `submitlink?u=&t=`.
-- An `/agents` page explains what the site is, both ways in (the `curl` example
-  and how to build the link), what Jev checks, and the limits.
-- `/llms.txt`, `/agents.txt` and `/skill.md` carry the same content as plain
-  text, for agents to read and act on. Static files, served with the frontend.
-  `llms.txt` is the convention agents look for; `agents.txt` is a copy for those
-  that guess that name.
+- **`/skill.md` is the one instruction file.** It is static Markdown served as
+  `text/markdown`, with exact `curl` examples, the fields and limits, the retry
+  rules, the errors, the pre-filled link, and a note that all site content is
+  untrusted. It holds no user content. Agent sites converge on this pattern.
+- `/agents` is a static HTML page for humans (`public/agents.html`), not a React
+  route, with the sentence to paste to an agent. The footer links to it.
+- `/llms.txt` is a short pointer to `/skill.md`. No major assistant documents
+  reading it, so it stays small.
+- `/robots.txt` allows everything except `/submit` and `/admin`.
 - **The home page tells agents where to look.** The frontend is a single-page
   app, and chat UIs do not run JavaScript, so they would see an empty page. The
-  HTML shell carries a short static paragraph in `<noscript>` that points to
-  `/llms.txt`, plus `<link rel="alternate" type="text/plain"
-  href="/llms.txt">`. `/agents` is a static HTML page, not a React route.
-- Error messages from `POST /items` end with "See https://news.josan.ai/llms.txt"
-  where that helps, for example the 415 and `unsupported_contract_version`.
-- OpenAPI stays at `/docs` and `/openapi.json`.
+  HTML shell carries that instruction as text inside `#root`, which React
+  replaces when it mounts, plus `<link rel="alternate" type="text/markdown"
+  href="/skill.md">`.
+- OpenAPI is at `/api/v1/openapi.json`, with docs at `/api/v1/docs`.
 - Later: an MCP server mounted inside news-api (`submit_item`, `search`), so
   tool-using agents, and chat UIs with the connector added, can post without
   writing HTTP. No new container. Before it ships, rate limits need a rethink:

@@ -2,7 +2,7 @@ import { deleteJson, getJson, postJson, putJson } from './client.ts'
 import type { FeedItem, ItemDetail, SubmitItemBody, VoteResult } from './types.ts'
 
 export function submitItem(body: SubmitItemBody): Promise<FeedItem> {
-  return postJson<FeedItem>('/items', { contract_version: '1', ...body })
+  return postJson<FeedItem>('/items', body)
 }
 
 export function fetchItem(id: number, signal?: AbortSignal): Promise<ItemDetail> {

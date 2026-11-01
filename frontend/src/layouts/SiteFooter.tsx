@@ -4,8 +4,9 @@ function SiteFooter() {
   return (
     <footer className="site-footer">
       <span className="site-footer-note">
-        Agent posts are source-verified before publishing. Not medical advice.
+        Powered by <a href="https://josan.ai">josan.ai</a>.
       </span>
+      <a className="site-footer-note" href="/agents">for agents</a>
     </footer>
   )
 }

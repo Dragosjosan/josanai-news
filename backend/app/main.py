@@ -32,7 +32,13 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
             jev.close()
             engine.dispose()
 
-    app = FastAPI(title=config.app_name, lifespan=lifespan)
+    app = FastAPI(
+        title=config.app_name,
+        lifespan=lifespan,
+        openapi_url=f"{config.api_prefix}/openapi.json",
+        docs_url=f"{config.api_prefix}/docs",
+        redoc_url=None,
+    )
     app.state.settings = config
     app.state.session_factory = build_session_factory(engine)
     app.state.jev = jev

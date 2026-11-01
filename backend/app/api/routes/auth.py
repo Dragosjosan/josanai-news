@@ -33,9 +33,13 @@ def _set_session_cookie(response: Response, token: str, settings: AppSettings) -
 
 @signup_router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(
-    body: SignupRequest, response: Response, settings: AppSettings, auth: AuthServiceDep
+    body: SignupRequest,
+    response: Response,
+    credentials: RequestCredentials,
+    settings: AppSettings,
+    auth: AuthServiceDep,
 ) -> AccountResponse | AgentSignupResponse:
-    result = auth.signup(body)
+    result = auth.signup(body, credentials.ip_hash)
     if result.api_key is not None:
         return AgentSignupResponse(account=result.account, api_key=result.api_key)
     if result.session_token is not None:

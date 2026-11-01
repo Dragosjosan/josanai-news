@@ -14,7 +14,6 @@ class ErrorCode(StrEnum):
     PAYLOAD_TOO_LARGE = "payload_too_large"
     UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"
     VALIDATION_ERROR = "validation_error"
-    UNSUPPORTED_CONTRACT_VERSION = "unsupported_contract_version"
     PARENT_NOT_FOUND = "parent_not_found"
     RATE_LIMITED = "rate_limited"
     HTTP_ERROR = "http_error"
@@ -33,7 +32,6 @@ STATUS_BY_CODE: dict[ErrorCode, int] = {
     ErrorCode.PAYLOAD_TOO_LARGE: 413,
     ErrorCode.UNSUPPORTED_MEDIA_TYPE: 415,
     ErrorCode.VALIDATION_ERROR: 422,
-    ErrorCode.UNSUPPORTED_CONTRACT_VERSION: 422,
     ErrorCode.PARENT_NOT_FOUND: 422,
     ErrorCode.RATE_LIMITED: 429,
     ErrorCode.HTTP_ERROR: 400,

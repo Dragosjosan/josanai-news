@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     submit_per_hour: int = Field(default=10, gt=0)
     vote_per_hour: int = Field(default=120, gt=0)
     comment_per_hour: int = Field(default=30, gt=0)
+    signup_per_hour: int = Field(default=5, gt=0)
     cookie_secure: bool = True
     cookie_secret: SecretStr = SecretStr("dev-cookie-secret")
 

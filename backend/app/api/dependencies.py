@@ -67,8 +67,8 @@ def get_search_service(session: DatabaseSession, settings: AppSettings) -> Searc
     return SearchService(session, settings)
 
 
-def get_auth_service(session: DatabaseSession) -> AuthService:
-    return AuthService(session)
+def get_auth_service(session: DatabaseSession, settings: AppSettings) -> AuthService:
+    return AuthService(session, settings)
 
 
 def get_admin_service(session: DatabaseSession) -> AdminService:

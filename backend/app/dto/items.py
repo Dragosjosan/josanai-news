@@ -45,7 +45,6 @@ class SearchQuery(BaseModel):
 
 
 class SubmitItemRequest(RequestModel):
-    contract_version: str
     title: Title
     url: WebUrl
     label: Label | None = None

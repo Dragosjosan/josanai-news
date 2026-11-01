@@ -24,8 +24,6 @@ from app.services.rate_limits import RATE_WINDOW, check_rate
 from app.services.reports import file_report
 from app.services.urls import display_domain
 
-CONTRACT_VERSION = "1"
-
 
 class PublishingService:
     def __init__(
@@ -41,11 +39,6 @@ class PublishingService:
         self._clock = clock
 
     def submit(self, request: SubmitItemRequest, credentials: Credentials) -> ItemDetail:
-        if request.contract_version != CONTRACT_VERSION:
-            raise AppError(
-                ErrorCode.UNSUPPORTED_CONTRACT_VERSION,
-                f"contract_version must be '{CONTRACT_VERSION}'.",
-            )
         identity = self._identity(credentials)
         self._check_rate(identity)
         self._check_label(request.label, identity)

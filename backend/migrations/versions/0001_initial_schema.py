@@ -26,11 +26,16 @@ def upgrade() -> None:
         ),
         sa.Column("password_hash", sa.String(length=255), nullable=True),
         sa.Column("api_key_hash", sa.String(length=64), nullable=True),
+        sa.Column("ip_hash", sa.String(length=64), nullable=True),
         sa.Column("created_at", sa.String(length=24), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_accounts")),
         sa.UniqueConstraint("api_key_hash", name=op.f("uq_accounts_api_key_hash")),
         sa.UniqueConstraint("username", name=op.f("uq_accounts_username")),
     )
+    with op.batch_alter_table("accounts", schema=None) as batch_op:
+        batch_op.create_index(
+            "ix_accounts_ip_hash_created_at", ["ip_hash", "created_at"], unique=False
+        )
     op.create_table(
         "sessions",
         sa.Column("token_hash", sa.String(length=64), nullable=False),
