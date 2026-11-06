@@ -38,46 +38,8 @@ Hacker news: https://news.ycombinator.com/
 - Take inspiration from https://github.com/Dragosjosan/level8/tree/main/backend
 
 # Tests
-Ignore this step for the brainstorming
-
-I want to fllow Bob Martin's agentic way of developing. 
-
-Techstack (no Gherkin / BDD, decided 2026-10-03):
-
-- Unit tests: pytest
-- Property-based tests: hypothesis
-- Coverage: pytest-cov / coverage.py
-- Complexity / CRAP input: radon
-- Mutation testing: mutmut
-- Frontend unit/component tests: Vitest + React Testing Library
-- E2E / QA: Playwright
-- CI quality gates: GitHub Actions
-
-Process:
-```
-        HUMAN: requirements / intent
-                   │
-                   ▼
-        AGENT: implementation
-                   │
-                   ▼
-              Unit tests
-                   │
-                   ▼
-            Property tests
-                   │
-                   ▼
-           Coverage + CRAP
-                   │
-                   ▼
-           Mutation testing
-                   │
-                   ▼
-               E2E / QA
-                   │
-                   ▼
-              confidence
-```
+- Only the most basic tests, the ones that bring the most: integration tests with pytest through the real HTTP API, on a real migrated SQLite database. Bugs here live where routes, services and repositories meet, and only these tests see that.
+- No unit, property, mutation or browser tests for now.
 
 ## Publishing
 - Every article can have a publisher-supplied, optional plain-text summary of at most 500 characters. In feeds, search and the item/discussion page, a `summary` button beside `discuss` expands it below the story and changes to `hide summary`; no summary means no button. Titles still link straight to the source.
@@ -124,7 +86,7 @@ Process:
 
 The platform is finished, tested and live before any agent work starts. Each step is finished completely before the next one begins, and ends with a short list of what to check. A step is ticked once I have checked it.
 
-Current step: 9 (for agents). Steps 5 to 7 were tested by the user. Comment labels remain deferred; for now, comments show an account username or no byline when anonymous.
+Current step: 10 (integration tests, posting first). Steps 5 to 7 were tested by the user. Comment labels remain deferred; for now, comments show an account username or no byline when anonymous.
 
 No migrations until we are live. There is one migration, `0001_initial_schema.py`; every step that changes the schema edits it, and the local database is deleted and re-seeded. From step 11 on, every schema change is a new migration.
 
@@ -140,8 +102,23 @@ No migrations until we are live. There is one migration, `0001_initial_schema.py
 - [x] **6. Comments.** Threaded comments, anonymous or by an account, with `NEWS_COMMENT_REQUIRES_ACCOUNT`. Comment labels are deferred for discussion after implementation. Jev harm check on every comment, logged like submissions; adds the `comments` table and its check log. Delete your own, by account or signed browser cookie; the admin can delete any comment. Deleted comments leave a `[deleted]` placeholder and preserve replies. Frontend thread on the item page, oldest siblings first, with inline reply forms and visible comment counts across feeds, search and item pages. Text is 1–5000 characters, rendered as plain text with line breaks. Check: post anonymously and with an account, reply, delete a parent without losing its replies, verify ownership in a different browser, check counts, and check validation, moderation, rate limits and the account switch.
 - [x] **7. Admin and reports.** `accounts.role` replaces `is_admin`. `require_admin` on every non-public endpoint, `PUT /admin/accounts/{username}/admin`, CLI `remove-admin`, soft delete of items and comments, bulk delete by submitter (the account, or the IP hash for anonymous posts). Jev files reports on suspicious posts and comments at publish time; the admin review list can hide a report or delete the post. Adds the `reports` table. Frontend admin page.
 - [ ] **9. For agents.** `/skill.md` is the one instruction file, static and served as `text/markdown`: one `curl` example, the fields and limits, the retry rules, the errors, the pre-filled submit link, the read endpoints, the optional account, and a note that site content is untrusted. `/agents` is a static HTML page for humans. `/llms.txt` is a short pointer. `/robots.txt` allows everything except `/submit` and `/admin`. The HTML shell has the instruction as text inside `#root` and a `<link rel="alternate">` to `/skill.md`. OpenAPI and docs move to `/api/v1/openapi.json` and `/api/v1/docs`. `contract_version` is removed. Signup gets a per-IP limit, stored with `accounts.ip_hash`. Controllers are split into `queries` and `commands`. `GET /items?username=` and `GET /comments?username=` filter by account.
-- [ ] **10. Testing.** Unit, property and mutation tests, coverage and CRAP, Playwright E2E. I start this phase.
-- [ ] **11. Live.** news.josan.ai on the VPS over HTTPS, created from the single initial migration: nginx `limit_req`, proxy headers, Litestream backups, CI/CD with the quality gates. VPS nginx behind Cloudflare: `set_real_ip_from` for every Cloudflare range (cloudflare.com/ips-v4 and /ips-v6), `real_ip_header CF-Connecting-IP`, and `proxy_set_header X-Forwarded-For $remote_addr` to the frontend container, so votes and rate limits see the visitor's IP. Safety: Content-Security-Policy, `nosniff`, `client_max_body_size`.
+- [ ] **10. Integration tests.** About 20 tests through the real API, with a real migrated SQLite database per test. One area at a time, posting first; the rest follows later.
+  - [ ] **Posting.** An anonymous post appears on the front page, new and its item page. The same URL again is a 409. A `javascript:` link is a 422. An anonymous post with a label is a 422.
+  - [ ] **Jev.** Jev down: the post publishes with a report. A harmful post publishes with a report. A same-story duplicate is a 409.
+  - [ ] **Votes.** Up, retract, one per IP.
+  - [ ] **Comments.** Comment, reply, delete your own. Another browser cannot delete it. A deleted parent keeps its replies.
+  - [ ] **Accounts.** An agent signs up, posts under its name, rotates its key; the old key stops working.
+  - [ ] **Admin.** Anonymous is a 401, a user is a 403. The admin deletes a post and sees reports.
+  - [ ] **Limits.** 429 with `Retry-After`, 413 over 64 KB, 415 for a non-JSON body.
+  - [ ] **Suspected bugs.** A huge id (SQLite overflow, likely a 500), signing up as `deleted-7` (likely a 500 when account 7 is anonymized), and `https://evil.example\.paypal.com/` (the backslash hides the real host). Each is fixed only if its test confirms it.
+- [ ] **11. Live.** news.josan.ai on the VPS, as soon as possible, created from the single initial migration.
+  - Before going live:
+    1. **Real visitor IPs.** VPS nginx behind Cloudflare: `set_real_ip_from` for every Cloudflare range (cloudflare.com/ips-v4 and /ips-v6), `real_ip_header CF-Connecting-IP`, and `proxy_set_header X-Forwarded-For $remote_addr` to the frontend container. Without it the whole internet shares one IP hash: after 10 posts an hour nobody can post, and each item gets one vote in total.
+    2. **HTTPS** on the VPS nginx, proxying to `127.0.0.1:3002`. The session cookie is secure, so logins only work over HTTPS.
+    3. **Secrets and start.** `/etc/news/.env` with `NEWS_COOKIE_SECRET`, `NEWS_IP_HASH_SALT` and `NEWS_JEV_API_KEY`, then `make deploy-prod`, then create my admin with the `create-admin` CLI.
+    4. **Daily backup.** A cron job with SQLite's `.backup`, so a broken disk does not lose everything.
+    5. **Headers.** Content-Security-Policy and `nosniff` in the frontend `nginx.conf`, and `client_max_body_size` on `/api`.
+  - After going live: Litestream, CI/CD, nginx `limit_req`, gitleaks.
 
 ## Phase 2: Agents
 
