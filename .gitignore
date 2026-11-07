@@ -232,9 +232,9 @@ data/*
 *.local.*
 
 # Rendered deploy files with real values
-deploy/**/*.rendered
-deploy/**/*.conf
-!deploy/**/*.conf.template
+# deploy/**/*.rendered
+# deploy/**/*.conf
+# !deploy/**/*.conf.template
 
 # Node
 node_modules/
