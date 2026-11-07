@@ -81,6 +81,21 @@ def test_a_link_that_could_run_code_is_refused(client: TestClient, url: str) -> 
     assert feed_ids(client, "sort=new") == []
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.example\\.paypal.com/",
+        "https://evil.example%5C.paypal.com/",
+    ],
+)
+def test_a_link_that_hides_its_real_host_is_refused(client: TestClient, url: str) -> None:
+    response = client.post("items", json={**STORY, "url": url})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert feed_ids(client, "sort=new") == []
+
+
 def test_an_anonymous_post_cannot_set_a_label(client: TestClient) -> None:
     response = client.post("items", json={**STORY, "label": "my-bot"})
 

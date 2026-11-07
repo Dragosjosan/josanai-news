@@ -1,4 +1,4 @@
-.PHONY: help install migrate seed reset-db test lint build run down db-export reset-docker-db check-not-prod check-prod-env build-prod run-prod deploy-prod restart-prod down-prod logs-prod
+.PHONY: help install migrate seed reset-db test lint build run down db-export reset-docker-db check-not-prod check-prod-env build-prod run-prod deploy-prod restart-prod down-prod logs-prod backup-prod
 
 .DEFAULT_GOAL := help
 
@@ -6,6 +6,8 @@ COMPOSE := docker compose -f docker-compose.yml
 PROD_ENV_FILE ?= /etc/news/.env
 PROD_COMPOSE := NEWS_ENV_FILE=$(PROD_ENV_FILE) $(COMPOSE)
 PROD_REQUIRED_KEYS := NEWS_COOKIE_SECRET NEWS_IP_HASH_SALT NEWS_JEV_API_KEY
+BACKUP_DIR ?= /var/backups/news
+BACKUP_KEEP_DAYS ?= 14
 
 help:
 	@echo "Development:"
@@ -30,6 +32,7 @@ help:
 	@echo "  make restart-prod - restart the containers without rebuilding"
 	@echo "  make down-prod    - stop the containers, keeping the data"
 	@echo "  make logs-prod    - follow the last 100 log lines"
+	@echo "  make backup-prod  - copy news.db to $(BACKUP_DIR), keeping $(BACKUP_KEEP_DAYS) days"
 
 install:
 	cd backend && uv sync
@@ -102,3 +105,10 @@ down-prod:
 
 logs-prod:
 	$(PROD_COMPOSE) logs --tail=100 -f
+
+backup-prod:
+	mkdir -p $(BACKUP_DIR)
+	$(PROD_COMPOSE) exec -T backend uv run --no-dev python -c "import sqlite3; sqlite3.connect('data/news.db').backup(sqlite3.connect('data/backup.db'))"
+	$(PROD_COMPOSE) cp backend:/app/data/backup.db $(BACKUP_DIR)/news-$$(date -u +%Y-%m-%d).db
+	$(PROD_COMPOSE) exec -T backend rm -f data/backup.db
+	find $(BACKUP_DIR) -name 'news-*.db' -mtime +$(BACKUP_KEEP_DAYS) -delete

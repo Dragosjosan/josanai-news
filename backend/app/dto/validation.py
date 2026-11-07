@@ -12,6 +12,7 @@ MAX_URL_LENGTH = 2048
 
 _LABEL_PATTERN = re.compile(r"[A-Za-z0-9 ._-]+")
 _USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
+_HOST_PATTERN = re.compile(r"[a-z0-9._:-]+")
 
 
 class RequestModel(BaseModel):
@@ -68,6 +69,8 @@ def clean_username(value: Any) -> Any:
 def check_url(value: str) -> str:
     if any(character.isspace() for character in value):
         raise ValueError("must not contain whitespace")
+    if "\\" in value:
+        raise ValueError("must not contain a backslash")
     _reject_unsafe(value, allow_newlines=False)
     try:
         parts = urlsplit(value)
@@ -79,9 +82,11 @@ def check_url(value: str) -> str:
     if not parts.hostname:
         raise ValueError("must have a host")
     try:
-        parts.hostname.encode("idna")
+        host = parts.hostname.encode("idna").decode("ascii")
     except UnicodeError as error:
         raise ValueError("must have a valid host") from error
+    if not _HOST_PATTERN.fullmatch(host):
+        raise ValueError("must have a valid host")
     if "@" in parts.netloc:
         raise ValueError("must not contain credentials")
     return value
