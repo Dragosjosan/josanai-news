@@ -115,7 +115,7 @@ news/
 ├── backend/                 news-api: FastAPI, level8 layout
 ├── frontend/                React + TypeScript + Vite (bun)
 ├── agents/                  one self-contained implementation per framework (maf/, langchain/ …)
-├── deploy/                  public, parametrized templates only (see "Open source")
+├── deploy/                  gitignored server files (see "Open source")
 ├── .github/workflows/       backend.yml, frontend.yml, agents.yml
 ├── data/                    local SQLite files (gitignored)
 ├── Makefile                 dev, test, lint, gen-types, migrate
@@ -202,9 +202,10 @@ The repository is public, so it holds only generic, parametrized deployment
 material. Anyone can deploy their own instance, and nothing about the real
 server is exposed.
 
-- **In the repo:** `deploy/compose.yaml` (all values from env), `.env.example`
-  with placeholders only, `deploy/nginx/site.conf.template` (`${DOMAIN}`,
-  `${UPSTREAM_*}`), `deploy/systemd/*.example`, and later Kustomize bases for k8s.
+- **In the repo:** `docker-compose.yml` (all secrets from env) and the
+  Makefile's `*-prod` targets. Server files such as the nginx block are
+  gitignored under `deploy/` and documented in the
+  `deploy-hetzner-vps` repo, which covers every josan.ai app.
 - **Never in the repo:** real `.env` files, the server IP or hostname, SSH users
   and keys, Litestream bucket names and credentials, healthcheck ping URLs,
   scraper cookies and sessions, and database files.
