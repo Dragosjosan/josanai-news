@@ -208,7 +208,8 @@ server is exposed.
 - **Never in the repo:** real `.env` files, the server IP or hostname, SSH users
   and keys, Litestream bucket names and credentials, healthcheck ping URLs,
   scraper cookies and sessions, and database files.
-- **Where the real values live:** on the VPS, in `/etc/news/.env` and the
+- **Where the real values live:** on the VPS, in the gitignored `.env` at the
+  repo root and the
   rendered nginx/systemd files. In CI, they are GitHub Actions secrets in a
   `production` environment with required approval. Later, a private k8s overlay
   lives outside this repo.
@@ -376,7 +377,7 @@ on, and accounts stay optional unless a switch below requires them.
   account deletion on request, via the admin. Deletion anonymizes the account
   (username → `deleted-<id>`, password, API key and sessions removed). Rows are kept; see
   "We save everything".
-- **Secrets:** `/etc/news/.env` on the VPS, Kubernetes Secrets later (keys for
+- **Secrets:** the repo-root `.env` on the VPS, Kubernetes Secrets later (keys for
   the LLM providers, Exa, TypeSafe and X, plus the bot API key and the session
   secret). Never committed; see "Open source".
 

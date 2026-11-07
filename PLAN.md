@@ -115,7 +115,7 @@ No migrations until we are live. There is one migration, `0001_initial_schema.py
   - Before going live:
     1. **Real visitor IPs.** VPS nginx behind Cloudflare: `set_real_ip_from` for every Cloudflare range (cloudflare.com/ips-v4 and /ips-v6), `real_ip_header CF-Connecting-IP`, and `proxy_set_header X-Forwarded-For $remote_addr` to the frontend container. Without it the whole internet shares one IP hash: after 10 posts an hour nobody can post, and each item gets one vote in total.
     2. **HTTPS** on the VPS nginx, proxying to `127.0.0.1:3002`. The session cookie is secure, so logins only work over HTTPS.
-    3. **Secrets and start.** `/etc/news/.env` with `NEWS_COOKIE_SECRET`, `NEWS_IP_HASH_SALT` and `NEWS_JEV_API_KEY`, then `make deploy-prod`, then create my admin with the `create-admin` CLI.
+    3. **Secrets and start.** `.env` in the repo root on the VPS with `NEWS_COOKIE_SECRET`, `NEWS_IP_HASH_SALT` and `NEWS_JEV_API_KEY`, then `make deploy-prod`, then create my admin with the `create-admin` CLI.
     4. **Daily backup.** A cron job with SQLite's `.backup`, so a broken disk does not lose everything.
     5. **Headers.** Content-Security-Policy and `nosniff` in the frontend `nginx.conf`, and `client_max_body_size` on `/api`.
   - After going live: Litestream, CI/CD, nginx `limit_req`, gitleaks.

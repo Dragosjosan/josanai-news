@@ -3,7 +3,7 @@
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose -f docker-compose.yml
-PROD_ENV_FILE ?= /etc/news/.env
+PROD_ENV_FILE ?= $(CURDIR)/.env
 PROD_COMPOSE := NEWS_ENV_FILE=$(PROD_ENV_FILE) $(COMPOSE)
 PROD_REQUIRED_KEYS := NEWS_COOKIE_SECRET NEWS_IP_HASH_SALT NEWS_JEV_API_KEY
 BACKUP_DIR ?= /var/backups/news
