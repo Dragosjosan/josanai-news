@@ -777,8 +777,11 @@ shared across the boundary.
 
 1. **Exact URL.** A `url` that already exists returns 409 before Jev is called,
    so it costs nothing.
-2. **Shortlist.** FTS5 (BM25) over title + summary of items from the last 30
-   days, top 10.
+2. **Shortlist.** Every visible item posted in the last 3 days
+   (`JEV_RECENT_DAYS`), newest first, plus the top 10 of an FTS5 (BM25) search
+   with the submitted title over title + summary + source name of items from
+   the last 30 days, without repeats. The recent window grows with volume: at
+   about 10 posts a day it is 30 items.
 3. **One `system_one` call** with short, simple prompts. The state is every text
    the item will show (title, summary, source name, username, label), the
    domain, and the shortlist. Two questions:

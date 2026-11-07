@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     jev_same_story_min: float = Field(default=0.85, ge=0, le=1)
     jev_shortlist_size: int = Field(default=10, gt=0)
     jev_shortlist_days: int = Field(default=30, gt=0)
+    jev_recent_days: int = Field(default=3, gt=0)
 
     feed_size: int = Field(default=70, gt=0)
     rank_candidates: int = Field(default=500, gt=0)

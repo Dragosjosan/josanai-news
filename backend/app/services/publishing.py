@@ -15,6 +15,7 @@ from app.db.models import (
 from app.db.repositories import items as item_repo
 from app.db.repositories import search as search_repo
 from app.db.repositories import submission_checks as check_repo
+from app.db.repositories.search import ShortlistEntry
 from app.dto.items import ItemDetail, SubmitItemRequest
 from app.errors import AppError, ErrorCode
 from app.services.identity import Credentials, Identity, resolve_identity
@@ -81,13 +82,7 @@ class PublishingService:
             raise _duplicate(existing, "same_url")
 
     def _judge(self, request: SubmitItemRequest, identity: Identity) -> SubmissionCheck:
-        settings = self._settings
-        shortlist = search_repo.shortlist(
-            self._session,
-            request.title,
-            self._clock() - timedelta(days=settings.jev_shortlist_days),
-            settings.jev_shortlist_size,
-        )
+        shortlist = self._earlier_stories(request.title)
         submission = Submission(
             title=request.title,
             summary=request.summary,
@@ -112,6 +107,21 @@ class PublishingService:
         self._reject_duplicate(check, verdict)
         check.outcome = CheckOutcome.PUBLISHED
         return check
+
+    def _earlier_stories(self, title: str) -> list[ShortlistEntry]:
+        settings = self._settings
+        now = self._clock()
+        recent = search_repo.posted_since(
+            self._session, now - timedelta(days=settings.jev_recent_days)
+        )
+        matches = search_repo.shortlist(
+            self._session,
+            title,
+            now - timedelta(days=settings.jev_shortlist_days),
+            settings.jev_shortlist_size,
+        )
+        seen = {story.id for story in recent}
+        return recent + [story for story in matches if story.id not in seen]
 
     def _reject_duplicate(self, check: SubmissionCheck, verdict: Verdict) -> None:
         if (

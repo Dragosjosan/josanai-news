@@ -28,6 +28,15 @@ def match_query(text_value: str) -> str | None:
     return " OR ".join(f'"{word}"' for word in words[:MAX_QUERY_WORDS])
 
 
+def posted_since(session: Session, since: datetime) -> list[ShortlistEntry]:
+    statement = (
+        select(Item.id, Item.title, Item.summary)
+        .where(Item.deleted_at.is_(None), Item.created_at >= since)
+        .order_by(Item.created_at.desc(), Item.id.desc())
+    )
+    return [ShortlistEntry(*row) for row in session.execute(statement)]
+
+
 def shortlist(
     session: Session, text_value: str, since: datetime, limit: int
 ) -> list[ShortlistEntry]:
