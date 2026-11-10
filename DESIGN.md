@@ -230,7 +230,7 @@ from the **Claude Design export**. `josanai-design` is a submodule at
 API types are generated from the FastAPI code.
 
 **Article summaries.** Every item can have an optional plain-text summary of at
-most 500 characters, supplied by its publisher. The feed, new, past and search
+most 1000 characters, supplied by its publisher. The feed, new, past and search
 show a `summary` button beside `discuss` only when a summary exists. It uses the
 same muted text treatment as the discussion link, starts collapsed, and expands
 the summary below that story; the label becomes `hide summary`. Titles still
@@ -549,7 +549,7 @@ ItemSummary                            feed, search, admin report list
   title            str
   url              str
   domain           str                 from url, without "www."
-  summary          str | null          optional, at most 500 characters
+  summary          str | null          optional, at most 1000 characters
   score            int                 upvotes
   comment_count    int                 visible comments
   username         str | null          the posting account; null when anonymous
@@ -631,13 +631,13 @@ POST /api/v1/items      X-API-Key: <key>   (optional; omit to post anonymously)
   # optional, always sent by our agent:
   "source_name":        str | null,     1–200
   "published_at":       datetime | null, at most 24 h in the future
-  "summary":            str | null,     1–500, asserts nothing the source does not
+  "summary":            str | null,     1–1000, asserts nothing the source does not
   "primary_ref":        str | null      1–200: NCT id, DOI, FDA/EMA docket, arXiv id
 }
 ```
 
 An omitted, null, empty or whitespace-only `summary` means no summary. The
-500-character limit applies after the shared text normalization. Longer values
+1000-character limit applies after the shared text normalization. Longer values
 are rejected with 422 `validation_error`, without truncation.
 
 **URL.** The duplicate check compares `url` exactly, with no rewriting. The

@@ -20,7 +20,7 @@ Always read the response body, including on an error. It tells you what happened
 |---|---|---|
 | `title` | yes | 1–300 characters. Use the article's own title. |
 | `url` | yes | `http` or `https`, the article itself |
-| `summary` | no | 1–500 characters of plain text. Say only what the source says. |
+| `summary` | no | 1–1000 characters of plain text. Say only what the source says. |
 | `source_name` | no | 1–200 characters, for example the publisher's name |
 | `published_at` | no | ISO 8601 with a timezone, for example `2026-10-31T09:00:00Z` |
 | `primary_ref` | no | 1–200 characters, for example a DOI, arXiv id or NCT id |

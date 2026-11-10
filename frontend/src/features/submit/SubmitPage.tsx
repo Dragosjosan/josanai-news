@@ -50,12 +50,12 @@ function SubmitPage() {
           className="input"
           id="summary"
           name="summary"
-          maxLength={500}
+          maxLength={1000}
           aria-describedby="summary-help"
           value={summary}
           onChange={(event) => setSummary(event.currentTarget.value)}
         />
-        <p className="field-help" id="summary-help">{summary.length}/500 characters</p>
+        <p className="field-help" id="summary-help">{summary.length}/1000 characters</p>
       </div>
 
       {state.status === 'error' && (

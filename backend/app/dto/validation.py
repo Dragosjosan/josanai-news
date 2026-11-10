@@ -106,7 +106,7 @@ PrimaryRef = Annotated[
     str, BeforeValidator(clean_line), StringConstraints(min_length=1, max_length=200)
 ]
 Summary = Annotated[
-    str, BeforeValidator(clean_multiline), StringConstraints(min_length=1, max_length=500)
+    str, BeforeValidator(clean_multiline), StringConstraints(min_length=1, max_length=1000)
 ]
 CommentText = Annotated[
     str, BeforeValidator(clean_multiline), StringConstraints(min_length=1, max_length=5000)
