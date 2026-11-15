@@ -85,7 +85,7 @@ def get_items_in_order(session: Session, ids: Sequence[int]) -> list[Item]:
 
 
 def get_by_url(session: Session, url: str) -> Item | None:
-    return session.scalar(select(Item).where(Item.url == url))
+    return session.scalar(select(Item).where(Item.url == url, Item.deleted_at.is_(None)))
 
 
 def get(session: Session, item_id: int) -> Item | None:

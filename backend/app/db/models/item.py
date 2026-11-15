@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy import ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.account import Account
@@ -12,11 +12,17 @@ class Item(Base):
     __table_args__ = (
         Index("ix_items_created_at_id", "created_at", "id"),
         Index("ix_items_account_id_created_at", "account_id", "created_at"),
+        Index(
+            "uq_items_url_visible",
+            "url",
+            unique=True,
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(300))
-    url: Mapped[str] = mapped_column(String(2048), unique=True)
+    url: Mapped[str] = mapped_column(String(2048))
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))
     label: Mapped[str | None] = mapped_column(String(40))
     ip_hash: Mapped[str | None] = mapped_column(String(64))
