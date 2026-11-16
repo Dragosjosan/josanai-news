@@ -8,7 +8,13 @@ from app.api.dependencies import (
     VotingServiceDep,
     require_admin,
 )
-from app.dto.items import ItemDetail, SubmitItemRequest, VoteRequest, VoteResponse
+from app.dto.items import (
+    EditItemRequest,
+    ItemDetail,
+    SubmitItemRequest,
+    VoteRequest,
+    VoteResponse,
+)
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -24,6 +30,11 @@ def submit_item(
     item = publishing.submit(body, credentials)
     response.headers["Location"] = f"{settings.api_prefix}/items/{item.id}"
     return item
+
+
+@router.patch("/{item_id}", dependencies=[Depends(require_admin)])
+def edit_item(item_id: int, body: EditItemRequest, admin: AdminServiceDep) -> ItemDetail:
+    return admin.edit_item(item_id, body)
 
 
 @router.delete(

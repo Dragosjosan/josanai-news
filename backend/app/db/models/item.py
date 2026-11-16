@@ -32,6 +32,7 @@ class Item(Base):
     primary_ref: Mapped[str | None] = mapped_column(String(200))
     upvotes: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utc_now)
+    edited_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
     account: Mapped[Account | None] = relationship()

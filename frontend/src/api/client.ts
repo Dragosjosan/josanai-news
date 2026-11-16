@@ -69,11 +69,15 @@ export function putJson<T>(path: string, body: unknown): Promise<T> {
   return sendJson<T>('PUT', path, body)
 }
 
+export function patchJson<T>(path: string, body: unknown): Promise<T> {
+  return sendJson<T>('PATCH', path, body)
+}
+
 export function deleteJson(path: string): Promise<void> {
   return sendJson<void>('DELETE', path)
 }
 
-async function sendJson<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<T> {
+async function sendJson<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     credentials: 'same-origin',

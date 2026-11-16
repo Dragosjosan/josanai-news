@@ -1,5 +1,5 @@
-import { deleteJson, getJson, postJson, putJson } from './client.ts'
-import type { FeedItem, ItemDetail, SubmitItemBody, VoteResult } from './types.ts'
+import { deleteJson, getJson, patchJson, postJson, putJson } from './client.ts'
+import type { EditItemBody, FeedItem, ItemDetail, SubmitItemBody, VoteResult } from './types.ts'
 
 export function submitItem(body: SubmitItemBody): Promise<FeedItem> {
   return postJson<FeedItem>('/items', body)
@@ -7,6 +7,10 @@ export function submitItem(body: SubmitItemBody): Promise<FeedItem> {
 
 export function fetchItem(id: number, signal?: AbortSignal): Promise<ItemDetail> {
   return getJson<ItemDetail>(`/items/${id}`, {}, signal)
+}
+
+export function editItem(id: number, body: EditItemBody): Promise<ItemDetail> {
+  return patchJson<ItemDetail>(`/items/${id}`, body)
 }
 
 export function deleteItem(id: number): Promise<void> {

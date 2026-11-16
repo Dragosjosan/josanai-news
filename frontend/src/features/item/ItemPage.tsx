@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams } from 'react-router'
 import type { ItemDetail } from '../../api/types.ts'
 import { ErrorState, LoadingState } from '../../components/AsyncState/AsyncState.tsx'
@@ -16,7 +17,8 @@ function ItemPage() {
   return <ItemDiscussion key={state.item.id} item={state.item} />
 }
 
-function ItemDiscussion({ item }: { item: ItemDetail }) {
+function ItemDiscussion({ item: loaded }: { item: ItemDetail }) {
+  const [item, setItem] = useState(loaded)
   const discussion = useComments(item.id)
   const count = discussion.state.status === 'ready'
     ? discussion.state.comments.filter((comment) => !comment.deleted).length
@@ -24,7 +26,7 @@ function ItemDiscussion({ item }: { item: ItemDetail }) {
 
   return (
     <>
-      <ItemArticle item={{ ...item, comment_count: count }} />
+      <ItemArticle item={{ ...item, comment_count: count }} onEdited={setItem} />
       <Comments discussion={discussion} />
     </>
   )

@@ -7,6 +7,7 @@ from pydantic import (
     BaseModel,
     Field,
     field_validator,
+    model_validator,
 )
 
 from app.dto.validation import (
@@ -62,6 +63,31 @@ class SubmitItemRequest(RequestModel):
         return value
 
 
+class EditItemRequest(RequestModel):
+    title: Title | None = None
+    summary: Summary | None = None
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def title_is_not_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("must not be null")
+        return value
+
+    @field_validator("summary", mode="before")
+    @classmethod
+    def empty_summary_is_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @model_validator(mode="after")
+    def changes_something(self) -> "EditItemRequest":
+        if not self.model_fields_set:
+            raise ValueError("send title, summary or both")
+        return self
+
+
 class ItemSummary(BaseModel):
     id: int
     title: str
@@ -73,6 +99,7 @@ class ItemSummary(BaseModel):
     username: str | None
     label: str | None
     created_at: datetime
+    edited_at: datetime | None
     viewer_vote: VoteDirection | None
 
 

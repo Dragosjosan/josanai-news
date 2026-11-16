@@ -10,6 +10,7 @@ from app.db.repositories import items as item_repo
 from app.db.repositories import reports as report_repo
 from app.db.repositories import sessions as session_repo
 from app.dto.accounts import AccountResponse
+from app.dto.items import EditItemRequest, ItemDetail
 from app.dto.reports import (
     BulkDeleteRequest,
     BulkDeleteResponse,
@@ -19,7 +20,7 @@ from app.dto.reports import (
 )
 from app.errors import AppError, ErrorCode
 from app.services.auth import to_response
-from app.services.item_views import to_summary
+from app.services.item_views import to_detail, to_summary
 
 
 class AdminService:
@@ -63,6 +64,22 @@ class AdminService:
         if item.deleted_at is None:
             item.deleted_at = self._clock()
             self._session.commit()
+
+    def edit_item(self, item_id: int, request: EditItemRequest) -> ItemDetail:
+        item = item_repo.get_visible(self._session, item_id)
+        if item is None:
+            raise AppError(ErrorCode.NOT_FOUND, "Item not found.")
+        changes = request.model_dump(include=request.model_fields_set)
+        changed = False
+        for field, value in changes.items():
+            if getattr(item, field) != value:
+                setattr(item, field, value)
+                changed = True
+        if changed:
+            item.edited_at = self._clock()
+            self._session.commit()
+            self._session.refresh(item)
+        return to_detail(self._session, item, False)
 
     def bulk_delete(self, request: BulkDeleteRequest) -> BulkDeleteResponse:
         items = self._submitter_items(self._require_item(request.item_id))

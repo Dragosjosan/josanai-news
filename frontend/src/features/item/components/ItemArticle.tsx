@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useLocation } from 'react-router'
 import type { ItemDetail } from '../../../api/types.ts'
 import { useAuth } from '../../../app/authContext.ts'
@@ -8,10 +9,18 @@ import VoteArrow from '../../../components/VoteArrow/VoteArrow.tsx'
 import { useVote } from '../../../components/VoteArrow/useVote.ts'
 import { pluralize, timeAgo } from '../../../lib/format.ts'
 import DeleteItemButton from './DeleteItemButton.tsx'
+import EditItemForm from './EditItemForm.tsx'
 import './ItemArticle.css'
 
-function ItemArticle({ item }: { item: ItemDetail }) {
+type ItemArticleProps = {
+  item: ItemDetail
+  onEdited: (item: ItemDetail) => void
+}
+
+function ItemArticle({ item, onEdited }: ItemArticleProps) {
   const { account } = useAuth()
+  const isAdmin = account?.role === 'admin'
+  const [editing, setEditing] = useState(false)
   const vote = useVote(item)
   const { hash } = useLocation()
   const summary = useDisclosure(hash === '#summary')
@@ -39,6 +48,11 @@ function ItemArticle({ item }: { item: ItemDetail }) {
           <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>
             {timeAgo(item.created_at)}
           </time>
+          {item.edited_at && (
+            <span className="item-article-edited" title={`edited ${new Date(item.edited_at).toLocaleString()}`}>
+              (edited)
+            </span>
+          )}
           {item.summary && (
             <>
               <span className="item-article-separator" aria-hidden="true">|</span>
@@ -53,10 +67,27 @@ function ItemArticle({ item }: { item: ItemDetail }) {
           )}
           <span className="item-article-separator" aria-hidden="true">|</span>
           <span>{item.comment_count === 0 ? 'discuss' : pluralize(item.comment_count, 'comment')}</span>
-          {account?.role === 'admin' && <DeleteItemButton id={item.id} />}
+          {isAdmin && !editing && (
+            <>
+              <span className="item-article-separator" aria-hidden="true">|</span>
+              <button className="item-article-action" type="button" onClick={() => setEditing(true)}>edit</button>
+            </>
+          )}
+          {isAdmin && <DeleteItemButton id={item.id} />}
         </div>
 
-        {item.summary && (
+        {editing && (
+          <EditItemForm
+            item={item}
+            onSaved={(edited) => {
+              onEdited(edited)
+              setEditing(false)
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        )}
+
+        {!editing && item.summary && (
           <p className="item-article-summary" id={summary.contentId} hidden={!summary.expanded}>
             {item.summary}
           </p>

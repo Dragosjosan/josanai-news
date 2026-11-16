@@ -18,6 +18,7 @@ def to_summary(item: Item, voted: bool, comment_count: int) -> ItemSummary:
         username=item.account.username if item.account else None,
         label=item.label,
         created_at=item.created_at,
+        edited_at=item.edited_at,
         viewer_vote="up" if voted else None,
     )
 

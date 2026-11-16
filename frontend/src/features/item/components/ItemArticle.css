@@ -68,18 +68,45 @@
   overflow-wrap: anywhere;
 }
 
+.item-article-edited {
+  color: var(--muted-2);
+}
+
+.item-article-action,
 .item-article-delete {
   all: unset;
-  color: var(--danger);
   cursor: pointer;
 }
 
+.item-article-delete {
+  color: var(--danger);
+}
+
+.item-article-action:hover,
 .item-article-delete:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
+.item-article-action:focus-visible,
 .item-article-delete:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: 1px;
+}
+
+.item-edit-form {
+  max-width: 640px;
+  margin-top: 14px;
+}
+
+.item-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-edit-error {
+  color: var(--danger);
+  font-size: 12px;
 }

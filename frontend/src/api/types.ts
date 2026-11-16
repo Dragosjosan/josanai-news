@@ -11,6 +11,7 @@ export type FeedItem = {
   username: string | null
   label: string | null
   created_at: string
+  edited_at: string | null
   viewer_vote: VoteDirection | null
 }
 
@@ -44,6 +45,11 @@ export type SubmitItemBody = {
   url: string
   title: string
   summary?: string | null
+}
+
+export type EditItemBody = {
+  title: string
+  summary: string | null
 }
 
 export type Account = {

@@ -38,6 +38,7 @@ function ItemRow({ item, rank }: ItemRowProps) {
           <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>
             {timeAgo(item.created_at)}
           </time>
+          {item.edited_at && <span title={`edited ${new Date(item.edited_at).toLocaleString()}`}>(edited)</span>}
           {item.summary && (
             <>
               <span aria-hidden="true">|</span>
